@@ -1258,25 +1258,42 @@ namespace OneDriveASPCoreFileProvider.Models
         private async Task<FileManagerDirectoryContent> ToFileManagerDirectoryContent(DriveItem item)
         {
             var file = new FileManagerDirectoryContent();
-            file.Name = item.Name;
-            file.Id = item.Id;
-            file.ParentId = item.ParentReference?.Id;
-            file.Size = item.Size ?? 0;
-            file.IsFile = item.Folder == null;
-            file.DateModified = item.LastModifiedDateTime?.DateTime ?? DateTime.MinValue;
-            file.DateCreated = item.CreatedDateTime?.DateTime ?? DateTime.MinValue;
-            file.HasChild = item.Folder != null && await HasChild(item);
-            file.Type = Path.GetExtension(item.Name);
+            file.Name = item?.Name ?? string.Empty;
+            file.Id = item?.Id ?? string.Empty;
+            file.ParentId = item?.ParentReference?.Id;
+            file.Size = item?.Size ?? 0;
+            file.IsFile = item?.Folder == null;
+            file.DateModified = item?.LastModifiedDateTime?.DateTime ?? DateTime.MinValue;
+            file.DateCreated = item?.CreatedDateTime?.DateTime ?? DateTime.MinValue;
+            file.HasChild = (item?.Folder != null) && await HasChild(item);
+            file.Type = Path.GetExtension(item?.Name ?? string.Empty);
             file.FilterId = GetFilterIdFromParentReference(item);  // Optimized: zero API calls
             
             // Try optimized path parsing first, fall back to async if needed
             file.FilterPath = GetFilterPathFromParentReference(item);
             if (string.IsNullOrEmpty(file.FilterPath))
             {
-                file.FilterPath = await GetFilterPath(item);  // Fallback to original method
+                try
+                {
+                    file.FilterPath = await GetFilterPath(item);  // Fallback to original method
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Error] GetFilterPath failed: {ex.Message}. Using empty path for item '{file.Name}'");
+                    file.FilterPath = "/";  // Default to root if all else fails
+                }
             }
             
-            file.Permission = GetPathPermission(file.FilterPath + (file.IsFile ? file.Name : Path.GetFileNameWithoutExtension(file.Name)), file.IsFile);
+            try
+            {
+                file.Permission = GetPathPermission(file.FilterPath + (file.IsFile ? file.Name : Path.GetFileNameWithoutExtension(file.Name)), file.IsFile);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Error] GetPathPermission failed: {ex.Message}");
+                file.Permission = null;  // Allow permission to be null
+            }
+            
             return file;
         }
 
@@ -1333,7 +1350,7 @@ namespace OneDriveASPCoreFileProvider.Models
         /// </summary>
         private string GetFilterPathFromParentReference(DriveItem item)
         {
-            if (item.ParentReference?.Path == null)
+            if (item == null || item.ParentReference?.Path == null)
                 return "";
 
             try
@@ -1351,8 +1368,9 @@ namespace OneDriveASPCoreFileProvider.Models
                 var normalizedPath = "/" + folderPath.Trim('/') + "/";
                 return normalizedPath;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[Error] GetFilterPathFromParentReference parsing failed: {ex.Message}");
                 return "";
             }
         }
@@ -1370,7 +1388,21 @@ namespace OneDriveASPCoreFileProvider.Models
                 while (currentItem?.ParentReference != null && currentItem.ParentReference.Id != null)
                 {
                     parentIds.Insert(0, currentItem.ParentReference.Id);
-                    currentItem = await graphServiceClient.Drives[driveId].Items[currentItem.ParentReference.Id].GetAsync();
+                    
+                    // Safety check: Ensure ParentReference.Id exists before fetching
+                    if (string.IsNullOrEmpty(currentItem.ParentReference?.Id))
+                    {
+                        break;  // Stop traversing if we can't get parent ID
+                    }
+                    
+                    try
+                    {
+                        currentItem = await graphServiceClient.Drives[driveId].Items[currentItem.ParentReference.Id].GetAsync();
+                    }
+                    catch
+                    {
+                        break;  // Stop on any API error and use what we have so far
+                    }
                 }
                 return string.Join("/", parentIds) + "/";
             }
@@ -1398,7 +1430,21 @@ namespace OneDriveASPCoreFileProvider.Models
                             parentPaths.Insert(0, folderNames.Last());
                         }
                     }
-                    currentItem = await graphServiceClient.Drives[driveId].Items[currentItem.ParentReference.Id].GetAsync();
+                    
+                    // Safety check: Ensure ParentReference.Id exists before fetching
+                    if (string.IsNullOrEmpty(currentItem.ParentReference?.Id))
+                    {
+                        break;  // Stop traversing if we can't get parent ID
+                    }
+                    
+                    try
+                    {
+                        currentItem = await graphServiceClient.Drives[driveId].Items[currentItem.ParentReference.Id].GetAsync();
+                    }
+                    catch
+                    {
+                        break;  // Stop on any API error and use what we have so far
+                    }
                 }
                 var filterPath = "/" + string.Join("/", parentPaths);
                 if (parentPaths.Count > 0) filterPath += "/";
