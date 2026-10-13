@@ -29,8 +29,6 @@ namespace OneDriveASPCoreFileProvider.Controllers
         [Route("OneDriveFileOperations")]
         public object FileOperations([FromBody] FileManagerDirectoryContent args)
         {
-            var header = HttpContext.Request.Headers["Authorization"].ToString();
-            Console.WriteLine($"Authorization token: {header}");
             this.operation.AccessDetails = GetRules();
             if (args.Action == "delete" || args.Action == "rename")
             {
@@ -85,9 +83,6 @@ namespace OneDriveASPCoreFileProvider.Controllers
         [DisableRequestSizeLimit]
         public IActionResult OneDriveUpload(string path, IList<IFormFile> uploadFiles, string action, string data, long size = 0)
         {
-            var header = HttpContext.Request.Headers["Authorization"].ToString();
-            Console.WriteLine($"Authorization token upload: {header}");
-            Console.WriteLine($"data: {data}");
             FileManagerResponse uploadResponse;
             FileManagerDirectoryContent[] dataObject = new FileManagerDirectoryContent[1];
             var options = new JsonSerializerOptions
@@ -96,7 +91,6 @@ namespace OneDriveASPCoreFileProvider.Controllers
                 PropertyNameCaseInsensitive = true
             };
             dataObject[0] = JsonSerializer.Deserialize<FileManagerDirectoryContent>(data, options);
-            Console.WriteLine($"dataObject[0]: {dataObject[0]}");
             uploadResponse = this.operation.Upload(path, uploadFiles, action, dataObject, size);
             if (uploadResponse.Error != null)
             {
@@ -109,10 +103,6 @@ namespace OneDriveASPCoreFileProvider.Controllers
         }
 
         [Route("OneDriveDownload")]
-// public object Download([FromBody] FileManagerDirectoryContent args)
-// {
-//     var header = HttpContext.Request.Headers["Authorization"].ToString();
-//             Console.WriteLine($"Authorization token: {header}");
         public IActionResult Download(string downloadInput)
         {
             var options = new JsonSerializerOptions
@@ -124,10 +114,6 @@ namespace OneDriveASPCoreFileProvider.Controllers
         }
 
         [Route("OneDriveGetImage")]
-        // public IActionResult GetImage([FromBody] FileManagerDirectoryContent args)
-        // {
-        //     var header = HttpContext.Request.Headers["Authorization"].ToString();
-        //     Console.WriteLine($"Authorization token: {header}");
         public IActionResult GetImage(FileManagerDirectoryContent args)
         {
             return this.operation.GetImage(args.Path, args.Id, false, args.Data);
@@ -136,97 +122,13 @@ namespace OneDriveASPCoreFileProvider.Controllers
         public AccessDetails GetRules()
         {
             AccessDetails accessDetails = new AccessDetails();
-
-            // These paths assume the File Manager is not using RootFolderId,
-            // so the root of the tree is the OneDrive drive root ("/").
-            // Adjust Path values if you use rootFolderId to scope to a subfolder.
             List<AccessRule> Rules = new List<AccessRule>
             {
-                // 1. Give everyone full access to the "Files" folder and its contents
-                new AccessRule
-                {
-                    Path = "Files",
-                    Role = "Document Manager",
-                    Copy = Permission.Allow,
-                    Read = Permission.Allow,
-                    Write = Permission.Allow,
-                    WriteContents = Permission.Allow,
-                    Download = Permission.Allow,
-                    Upload = Permission.Allow,
-                    IsFile = false
-                },
-                new AccessRule
-                {
-                    Path = "Files/*",
-                    Role = "Document Manager",
-                    Copy = Permission.Allow,
-                    Read = Permission.Allow,
-                    Write = Permission.Allow,
-                    Download = Permission.Allow,
-                    IsFile = true
-                },
-                new AccessRule
-                {
-                    Path = "Files/*.*",
-                    Role = "Document Manager",
-                    Copy = Permission.Allow,
-                    Read = Permission.Allow,
-                    Write = Permission.Allow,
-                    Download = Permission.Allow,
-                    IsFile = true
-                },
-
-                // 2. Make "Microsoft Copilot Chat Files" read-only (view/download only)
-                new AccessRule
-                {
-                    Path = "Microsoft Copilot Chat Files",
-                    Role = "Document Manager",
-                    Copy = Permission.Deny,
-                    Read = Permission.Allow,
-                    Write = Permission.Deny,          // cannot rename/delete the folder
-                    WriteContents = Permission.Deny,   // cannot add/delete inside
-                    Download = Permission.Allow,
-                    Upload = Permission.Deny,
-                    IsFile = false
-                },
-                new AccessRule
-                {
-                    Path = "Microsoft Copilot Chat Files/*",
-                    Role = "Document Manager",
-                    Copy = Permission.Deny,
-                    Read = Permission.Allow,
-                    Write = Permission.Deny,
-                    Download = Permission.Allow,
-                    IsFile = true
-                },
-                new AccessRule
-                {
-                    Path = "Microsoft Copilot Chat Files/*.*",
-                    Role = "Document Manager",
-                    Copy = Permission.Deny,
-                    Read = Permission.Allow,
-                    Write = Permission.Deny,
-                    Download = Permission.Allow,
-                    IsFile = true
-                },
-
-                // 3. Hide "Apps" completely
-                new AccessRule
-                {
-                    Path = "Apps",
-                    Role = "Document Manager",
-                    Copy = Permission.Deny,
-                    Read = Permission.Deny,            // hidden from listings
-                    Write = Permission.Deny,
-                    WriteContents = Permission.Deny,
-                    Download = Permission.Deny,
-                    Upload = Permission.Deny,
-                    IsFile = false
-                }
+                new AccessRule { Path = "Files", Role = "Document Manager", Copy = Permission.Allow, Read = Permission.Allow, Write = Permission.Allow, WriteContents = Permission.Allow, Download = Permission.Allow, Upload = Permission.Allow, IsFile = false },
+                new AccessRule { Path = "Microsoft Copilot Chat Files", Role = "Document Manager", Copy = Permission.Deny, Read = Permission.Allow, Write = Permission.Deny, WriteContents = Permission.Deny, Download = Permission.Allow, Upload = Permission.Deny, IsFile = false },
+                new AccessRule { Path = "Apps", Role = "Document Manager", Copy = Permission.Deny, Read = Permission.Deny, Write = Permission.Deny, WriteContents = Permission.Deny, Download = Permission.Deny, Upload = Permission.Deny, IsFile = false }
             };
-
             accessDetails.AccessRules = Rules;
-            // accessDetails.Role = "Document Manager";
             return accessDetails;
         }
     }
