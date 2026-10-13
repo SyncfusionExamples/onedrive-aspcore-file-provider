@@ -8,7 +8,6 @@ using Microsoft.Graph.Models;
 using Syncfusion.Web.FileManager.Base;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -56,16 +55,7 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse GetFiles(string path, bool showHiddenItems, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
-            try
-            {
-                return GetFilesAsync(path, showHiddenItems, data).GetAwaiter().GetResult();
-            }
-            finally
-            {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] GetFiles path='{path}' completed in {stopwatch.ElapsedMilliseconds} ms");
-            }
+            return GetFilesAsync(path, showHiddenItems, data).GetAwaiter().GetResult();
         }
 
         public async Task<FileManagerResponse> GetFilesAsync(string path, bool showHiddenItems, params FileManagerDirectoryContent[] data)
@@ -75,7 +65,6 @@ namespace OneDriveASPCoreFileProvider.Models
             try
             {
                 DriveItem root = null;
-                var sw = Stopwatch.StartNew();
                 
                 try
                 {
@@ -86,31 +75,24 @@ namespace OneDriveASPCoreFileProvider.Models
                     else if (data != null && data.Length > 0 && !string.IsNullOrEmpty(data[0].Id))
                     {
                         // Primary: Use ID from File Manager request (fastest)
-                        Console.WriteLine($"[Debug] GetFilesAsync: Using ID from data: {data[0].Id}");
                         root = await graphServiceClient.Drives[driveId].Items[data[0].Id].GetAsync();
                     }
                     else if (!string.IsNullOrEmpty(path) && path != "/" && IsGraphItemId(path))
                     {
                         // Secondary: Detect if path itself is a Graph ID (e.g., from persistence/breadcrumb)
-                        Console.WriteLine($"[Debug] GetFilesAsync: Path detected as ID: {path}");
                         root = await graphServiceClient.Drives[driveId].Items[path.Trim('/')].GetAsync();
                     }
                     else
                     {
                         // Fallback: Resolve name-based path to folder (slowest, but necessary)
-                        Console.WriteLine($"[Debug] GetFilesAsync: Resolving path-based folder: {path}");
                         var configuredRoot = await GetRootItemAsync();
                         root = await ResolveFolderPathAsync(path, configuredRoot);
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Console.WriteLine($"[Error] GetFilesAsync failed to fetch root: {ex.Message}");
                     throw;
                 }
-                
-                sw.Stop();
-                Console.WriteLine($"[Perf] GetFiles root fetch took {sw.ElapsedMilliseconds} ms");
 
                 // Safety check: Ensure we got a valid root
                 if (root == null)
@@ -118,7 +100,6 @@ namespace OneDriveASPCoreFileProvider.Models
                     throw new InvalidOperationException("Failed to fetch root folder - got null response from Graph API");
                 }
 
-                sw.Restart();
                 FileManagerDirectoryContent cwd = await ToFileManagerDirectoryContent(root);
                 
                 // Safety check: Ensure CWD is valid
@@ -128,8 +109,6 @@ namespace OneDriveASPCoreFileProvider.Models
                 }
                 
                 readResponse.CWD = cwd;
-                sw.Stop();
-                Console.WriteLine($"[Perf] GetFiles CWD conversion took {sw.ElapsedMilliseconds} ms");
 
                 if (cwd.Permission != null && !cwd.Permission.Read)
                 {
@@ -137,11 +116,8 @@ namespace OneDriveASPCoreFileProvider.Models
                     throw new UnauthorizedAccessException("'" + cwd.Name + "' is not accessible. You need permission to perform the read action.");
                 }
 
-                sw.Restart();
                 var children = await GetChildAsync(root.Id);
                 readResponse.Files = children ?? new List<FileManagerDirectoryContent>();  // Ensure never null
-                sw.Stop();
-                Console.WriteLine($"[Perf] GetFiles children fetch took {sw.ElapsedMilliseconds} ms");
                 return readResponse;
             }
             catch (Exception e)
@@ -212,15 +188,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse Create(string path, string name, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return CreateAsync(path, name, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Create path='{path}' name='{name}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -273,15 +246,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse Delete(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return AsyncDelete(path, names, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Delete path='{path}' names='{string.Join(",", names ?? new string[0])}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -319,15 +289,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse Rename(string path, string name, string newName, bool replace = false, bool showFileExtension = true, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return RenameAsync(path, name, newName, replace, showFileExtension, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Rename path='{path}' name='{name}' newName='{newName}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -384,29 +351,23 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse Copy(string action, string path, string targetPath, string[] names, string[] replacedItemNames, FileManagerDirectoryContent TargetData, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return CopyOrMoveDriveItemAsync(action, path, targetPath, names, replacedItemNames, TargetData, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Copy path='{path}' targetPath='{targetPath}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
         public FileManagerResponse Move(string action, string path, string targetPath, string[] names, string[] replacedItemNames, FileManagerDirectoryContent TargetData, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return CopyOrMoveDriveItemAsync(action, path, targetPath, names, replacedItemNames, TargetData, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Move path='{path}' targetPath='{targetPath}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -510,7 +471,6 @@ namespace OneDriveASPCoreFileProvider.Models
                             ParentReference = new ItemReference { DriveId = driveId, Id = TargetData.Id },
                             Name = targetName
                         };
-                        Console.WriteLine($"[CopyMove] Copying {item.Id} -> {TargetData.Id} as {targetName}");
                         var operation = await graphServiceClient.Drives[driveId].Items[item.Id].Copy.PostAsync(requestBody);
 
                         var copiedItem = await WaitForCopiedItemAsync(TargetData.Id, targetName);
@@ -526,7 +486,6 @@ namespace OneDriveASPCoreFileProvider.Models
                             ParentReference = new ItemReference { Id = TargetData.Id },
                             Name = targetName
                         };
-                        Console.WriteLine($"[CopyMove] Moving {item.Id} -> {TargetData.Id} as {targetName}");
                         await graphServiceClient.Drives[driveId].Items[item.Id].PatchAsync(moveRequestBody);
 
                         var movedItem = await graphServiceClient.Drives[driveId].Items[item.Id].GetAsync();
@@ -598,7 +557,6 @@ namespace OneDriveASPCoreFileProvider.Models
                     var child = await graphServiceClient.Drives[driveId].Items[parentId].ItemWithPath(name).GetAsync();
                     if (child != null)
                     {
-                        Console.WriteLine($"[CopyMove] Found copied item '{name}' after {attempts + 1} attempt(s)");
                         return child;
                     }
                 }
@@ -607,17 +565,14 @@ namespace OneDriveASPCoreFileProvider.Models
                     // 404 / item not yet available, keep waiting
                     if (ex.ResponseStatusCode != 404)
                     {
-                        Console.WriteLine($"[CopyMove] OData error waiting for '{name}': {ex.Message}");
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Console.WriteLine($"[CopyMove] Error waiting for '{name}': {ex.Message}");
                 }
                 attempts++;
                 await Task.Delay(1000);
             }
-            Console.WriteLine($"[CopyMove] Copied item '{name}' was not found after {maxAttempts} attempts");
             return null;
         }
 
@@ -637,15 +592,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse Details(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return DetailsAsync(path, names, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Details path='{path}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -693,15 +645,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse Search(string path, string searchString, bool showHiddenItems, bool caseSensitive, string filterType, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return SearchAsync(path, searchString, showHiddenItems, caseSensitive, filterType, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Search path='{path}' searchString='{searchString}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -827,15 +776,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, FileManagerDirectoryContent[] data, long size = 0)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return AsyncUpload(path, uploadFiles, action, data, size).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Upload path='{path}' action='{action}' uploadFiles.Count='{uploadFiles?.Count}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -856,7 +802,6 @@ namespace OneDriveASPCoreFileProvider.Models
                     accessMessage = PathPermission.Message;
                     throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the upload action.");
                 }
-                Console.WriteLine($"data[0].Id:{data[0].Id}");
                 string driveItemId = data[0].Id;
                 List<string> existFiles = new List<string>();
                 foreach (IFormFile file in uploadFiles)
@@ -1173,15 +1118,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public virtual FileStreamResult Download(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return DownloadSelectedDriveItemsAsync(path, names, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] Download path='{path}' names='{string.Join(",", names ?? Array.Empty<string>())}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
@@ -1262,15 +1204,12 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public virtual FileStreamResult GetImage(string path, string id, bool allowCompress, params FileManagerDirectoryContent[] data)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 return GetImageAsync(path, id, allowCompress, data).GetAwaiter().GetResult();
             }
             finally
             {
-                stopwatch.Stop();
-                Console.WriteLine($"[Perf] GetImage id='{id}' completed in {stopwatch.ElapsedMilliseconds} ms");
             }
         }
 
