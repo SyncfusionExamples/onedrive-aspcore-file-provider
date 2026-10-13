@@ -1268,7 +1268,14 @@ namespace OneDriveASPCoreFileProvider.Models
             file.HasChild = item.Folder != null && await HasChild(item);
             file.Type = Path.GetExtension(item.Name);
             file.FilterId = GetFilterIdFromParentReference(item);  // Optimized: zero API calls
-            file.FilterPath = GetFilterPathFromParentReference(item);  // Optimized: zero API calls
+            
+            // Try optimized path parsing first, fall back to async if needed
+            file.FilterPath = GetFilterPathFromParentReference(item);
+            if (string.IsNullOrEmpty(file.FilterPath))
+            {
+                file.FilterPath = await GetFilterPath(item);  // Fallback to original method
+            }
+            
             file.Permission = GetPathPermission(file.FilterPath + (file.IsFile ? file.Name : Path.GetFileNameWithoutExtension(file.Name)), file.IsFile);
             return file;
         }
