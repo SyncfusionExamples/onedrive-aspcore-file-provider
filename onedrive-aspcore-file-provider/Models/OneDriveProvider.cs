@@ -1306,13 +1306,15 @@ namespace OneDriveASPCoreFileProvider.Models
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Error] GetFilterPath failed: {ex.Message}. Using empty path for item '{file.Name}'");
+                    Console.WriteLine($"[Error] GetFilterPath failed: {ex.Message}. Using root path for item '{file.Name}'");
                     file.FilterPath = "/";  // Default to root if all else fails
                 }
             }
             
-            // Set Path field (required for Blazor client) - combination of FilterPath + Name
-            file.Path = file.FilterPath + file.Name;
+            // CRITICAL FOR PERSISTENCE: Set Path to the item ID
+            // This allows persistence to correctly reload the same item
+            // Persistence stores the Path field, and when reloading, uses it as the identifier
+            file.Path = file.Id;
             
             try
             {
