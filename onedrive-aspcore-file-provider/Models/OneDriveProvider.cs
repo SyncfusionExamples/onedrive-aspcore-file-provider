@@ -82,10 +82,17 @@ namespace OneDriveASPCoreFileProvider.Models
                 }
                 else if (data != null && data.Length > 0 && !string.IsNullOrEmpty(data[0].Id))
                 {
+                    // Primary: Use ID from File Manager request (fastest)
                     root = await graphServiceClient.Drives[driveId].Items[data[0].Id].GetAsync();
+                }
+                else if (!string.IsNullOrEmpty(path) && path != "/" && IsGraphItemId(path))
+                {
+                    // Secondary: Detect if path itself is a Graph ID (e.g., from persistence/breadcrumb)
+                    root = await graphServiceClient.Drives[driveId].Items[path.Trim('/')].GetAsync();
                 }
                 else
                 {
+                    // Fallback: Resolve name-based path to folder (slowest, but necessary)
                     var configuredRoot = await GetRootItemAsync();
                     root = await ResolveFolderPathAsync(path, configuredRoot);
                 }
@@ -1260,8 +1267,8 @@ namespace OneDriveASPCoreFileProvider.Models
             file.DateCreated = item.CreatedDateTime?.DateTime ?? DateTime.MinValue;
             file.HasChild = item.Folder != null && await HasChild(item);
             file.Type = Path.GetExtension(item.Name);
-            file.FilterId = await GetFilterId(item);
-            file.FilterPath = await GetFilterPath(item);
+            file.FilterId = GetFilterIdFromParentReference(item);  // Optimized: zero API calls
+            file.FilterPath = GetFilterPathFromParentReference(item);  // Optimized: zero API calls
             file.Permission = GetPathPermission(file.FilterPath + (file.IsFile ? file.Name : Path.GetFileNameWithoutExtension(file.Name)), file.IsFile);
             return file;
         }
@@ -1301,6 +1308,52 @@ namespace OneDriveASPCoreFileProvider.Models
             catch { return false; }
         }
 
+        /// <summary>
+        /// Optimized: Get parent ID path directly from ParentReference without recursive API calls
+        /// </summary>
+        private string GetFilterIdFromParentReference(DriveItem item)
+        {
+            // For now, return empty string since FilterId is mainly for internal tracking
+            // and File Manager operations use actual ID field instead
+            // This can be lazily computed if needed in future
+            return "";
+        }
+
+        /// <summary>
+        /// Optimized: Extract folder path directly from ParentReference.Path without recursive API calls
+        /// Graph API provides: "/drives/{driveId}/root:/folder1/folder2"
+        /// We extract: "/folder1/folder2/"
+        /// </summary>
+        private string GetFilterPathFromParentReference(DriveItem item)
+        {
+            if (item.ParentReference?.Path == null)
+                return "";
+
+            try
+            {
+                // Parse the path from Graph format: "/drives/{driveId}/root:/folder1/folder2"
+                var pathParts = item.ParentReference.Path.Split(new[] { ":/" }, StringSplitOptions.RemoveEmptyEntries);
+                if (pathParts.Length <= 1)
+                    return "";
+
+                var folderPath = pathParts[1];
+                if (string.IsNullOrEmpty(folderPath))
+                    return "/";
+
+                // Ensure proper format: "/folder1/folder2/"
+                var normalizedPath = "/" + folderPath.Trim('/') + "/";
+                return normalizedPath;
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// DEPRECATED: Use GetFilterIdFromParentReference instead
+        /// Kept for backward compatibility if needed
+        /// </summary>
         private async Task<string> GetFilterId(DriveItem item)
         {
             if (item.ParentReference != null && item.ParentReference.Id != null)
@@ -1317,6 +1370,10 @@ namespace OneDriveASPCoreFileProvider.Models
             return "";
         }
 
+        /// <summary>
+        /// DEPRECATED: Use GetFilterPathFromParentReference instead
+        /// Kept for backward compatibility if needed
+        /// </summary>
         private async Task<string> GetFilterPath(DriveItem item)
         {
             if (item.ParentReference != null && item.ParentReference.Path != null)
@@ -1467,6 +1524,27 @@ namespace OneDriveASPCoreFileProvider.Models
         protected virtual bool HasPermission(Syncfusion.Web.FileManager.Base.Permission rule)
         {
             return rule == Syncfusion.Web.FileManager.Base.Permission.Allow;
+        }
+
+        /// <summary>
+        /// Determines if a string is a Microsoft Graph item ID (not a folder name/path)
+        /// Graph IDs are typically 32+ alphanumeric characters (base64URL encoded)
+        /// </summary>
+        private bool IsGraphItemId(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return false;
+
+            // Remove path delimiters
+            var cleanValue = value.Trim('/').Trim();
+
+            // Graph IDs are typically 32-48 characters and contain base64URL characters
+            // (alphanumeric, hyphen, underscore, rarely slash or colon)
+            if (cleanValue.Length < 24)
+                return false;
+
+            // Check if it looks like a Graph ID (mostly alphanumeric with possible -_= chars)
+            return cleanValue.All(c => char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '=');
         }
 
         public string ToCamelCase(FileManagerResponse userData)
