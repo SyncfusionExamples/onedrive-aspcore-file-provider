@@ -1118,13 +1118,7 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public virtual FileStreamResult Download(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            try
-            {
-                return DownloadSelectedDriveItemsAsync(path, names, data).GetAwaiter().GetResult();
-            }
-            finally
-            {
-            }
+            return DownloadSelectedDriveItemsAsync(path, names, data).GetAwaiter().GetResult();
         }
 
         public async Task<FileStreamResult> DownloadSelectedDriveItemsAsync(string path, string[] names, params FileManagerDirectoryContent[] data)
@@ -1204,13 +1198,7 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public virtual FileStreamResult GetImage(string path, string id, bool allowCompress, params FileManagerDirectoryContent[] data)
         {
-            try
-            {
-                return GetImageAsync(path, id, allowCompress, data).GetAwaiter().GetResult();
-            }
-            finally
-            {
-            }
+            return GetImageAsync(path, id, allowCompress, data).GetAwaiter().GetResult();
         }
 
         public async Task<FileStreamResult> GetImageAsync(string path, string id, bool allowCompress, params FileManagerDirectoryContent[] data)
