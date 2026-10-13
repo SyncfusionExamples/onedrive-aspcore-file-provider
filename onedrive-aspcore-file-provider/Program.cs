@@ -6,6 +6,9 @@ using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure to listen on all interfaces
+builder.WebHost.UseUrls("http://0.0.0.0:62870");
+
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddCors(options =>
