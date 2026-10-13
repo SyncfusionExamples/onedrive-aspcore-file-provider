@@ -74,33 +74,59 @@ namespace OneDriveASPCoreFileProvider.Models
             FileManagerResponse readResponse = new FileManagerResponse();
             try
             {
-                DriveItem root;
+                DriveItem root = null;
                 var sw = Stopwatch.StartNew();
-                if (path == "/")
+                
+                try
                 {
-                    root = await GetRootItemAsync();
+                    if (path == "/")
+                    {
+                        root = await GetRootItemAsync();
+                    }
+                    else if (data != null && data.Length > 0 && !string.IsNullOrEmpty(data[0].Id))
+                    {
+                        // Primary: Use ID from File Manager request (fastest)
+                        Console.WriteLine($"[Debug] GetFilesAsync: Using ID from data: {data[0].Id}");
+                        root = await graphServiceClient.Drives[driveId].Items[data[0].Id].GetAsync();
+                    }
+                    else if (!string.IsNullOrEmpty(path) && path != "/" && IsGraphItemId(path))
+                    {
+                        // Secondary: Detect if path itself is a Graph ID (e.g., from persistence/breadcrumb)
+                        Console.WriteLine($"[Debug] GetFilesAsync: Path detected as ID: {path}");
+                        root = await graphServiceClient.Drives[driveId].Items[path.Trim('/')].GetAsync();
+                    }
+                    else
+                    {
+                        // Fallback: Resolve name-based path to folder (slowest, but necessary)
+                        Console.WriteLine($"[Debug] GetFilesAsync: Resolving path-based folder: {path}");
+                        var configuredRoot = await GetRootItemAsync();
+                        root = await ResolveFolderPathAsync(path, configuredRoot);
+                    }
                 }
-                else if (data != null && data.Length > 0 && !string.IsNullOrEmpty(data[0].Id))
+                catch (Exception ex)
                 {
-                    // Primary: Use ID from File Manager request (fastest)
-                    root = await graphServiceClient.Drives[driveId].Items[data[0].Id].GetAsync();
+                    Console.WriteLine($"[Error] GetFilesAsync failed to fetch root: {ex.Message}");
+                    throw;
                 }
-                else if (!string.IsNullOrEmpty(path) && path != "/" && IsGraphItemId(path))
-                {
-                    // Secondary: Detect if path itself is a Graph ID (e.g., from persistence/breadcrumb)
-                    root = await graphServiceClient.Drives[driveId].Items[path.Trim('/')].GetAsync();
-                }
-                else
-                {
-                    // Fallback: Resolve name-based path to folder (slowest, but necessary)
-                    var configuredRoot = await GetRootItemAsync();
-                    root = await ResolveFolderPathAsync(path, configuredRoot);
-                }
+                
                 sw.Stop();
                 Console.WriteLine($"[Perf] GetFiles root fetch took {sw.ElapsedMilliseconds} ms");
 
+                // Safety check: Ensure we got a valid root
+                if (root == null)
+                {
+                    throw new InvalidOperationException("Failed to fetch root folder - got null response from Graph API");
+                }
+
                 sw.Restart();
                 FileManagerDirectoryContent cwd = await ToFileManagerDirectoryContent(root);
+                
+                // Safety check: Ensure CWD is valid
+                if (cwd == null)
+                {
+                    throw new InvalidOperationException("Failed to convert root folder to FileManagerDirectoryContent - got null response");
+                }
+                
                 readResponse.CWD = cwd;
                 sw.Stop();
                 Console.WriteLine($"[Perf] GetFiles CWD conversion took {sw.ElapsedMilliseconds} ms");
@@ -112,7 +138,8 @@ namespace OneDriveASPCoreFileProvider.Models
                 }
 
                 sw.Restart();
-                readResponse.Files = await GetChildAsync(root.Id);
+                var children = await GetChildAsync(root.Id);
+                readResponse.Files = children ?? new List<FileManagerDirectoryContent>();  // Ensure never null
                 sw.Stop();
                 Console.WriteLine($"[Perf] GetFiles children fetch took {sw.ElapsedMilliseconds} ms");
                 return readResponse;
@@ -1300,10 +1327,33 @@ namespace OneDriveASPCoreFileProvider.Models
         private async Task<List<FileManagerDirectoryContent>> GetChildAsync(string itemId)
         {
             List<FileManagerDirectoryContent> child = new List<FileManagerDirectoryContent>();
-            var children = await graphServiceClient.Drives[driveId].Items[itemId].Children.GetAsync();
-            foreach (var item in children.Value)
+            try
             {
-                child.Add(await ToFileManagerDirectoryContent(item));
+                var children = await graphServiceClient.Drives[driveId].Items[itemId].Children.GetAsync();
+                if (children?.Value != null)
+                {
+                    foreach (var item in children.Value)
+                    {
+                        try
+                        {
+                            var converted = await ToFileManagerDirectoryContent(item);
+                            if (converted != null)
+                            {
+                                child.Add(converted);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[Error] Failed to convert child item: {ex.Message}");
+                            // Continue with next item instead of crashing
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Error] GetChildAsync failed: {ex.Message}");
+                // Return empty list instead of null
             }
             return child;
         }
