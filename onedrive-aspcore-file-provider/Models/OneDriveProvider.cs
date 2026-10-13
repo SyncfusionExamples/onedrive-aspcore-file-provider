@@ -1311,6 +1311,9 @@ namespace OneDriveASPCoreFileProvider.Models
                 }
             }
             
+            // Set Path field (required for Blazor client) - combination of FilterPath + Name
+            file.Path = file.FilterPath + file.Name;
+            
             try
             {
                 file.Permission = GetPathPermission(file.FilterPath + (file.IsFile ? file.Name : Path.GetFileNameWithoutExtension(file.Name)), file.IsFile);

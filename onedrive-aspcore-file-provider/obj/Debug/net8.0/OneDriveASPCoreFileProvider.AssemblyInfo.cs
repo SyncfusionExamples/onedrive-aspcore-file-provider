@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OneDriveASPCoreFileProvider")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fda85222e2b601e708644dabc759d06266181b17")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1d8963fbb4958b5279b5d7caeecd16ef22d52c36")]
 [assembly: System.Reflection.AssemblyProductAttribute("OneDriveASPCoreFileProvider")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OneDriveASPCoreFileProvider")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
