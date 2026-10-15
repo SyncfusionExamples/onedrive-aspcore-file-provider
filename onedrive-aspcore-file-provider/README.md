@@ -11,7 +11,7 @@ The following actions can be performed using the OneDrive file system provider:
 | **Read** | Reads the files and folders from OneDrive, including navigation breadcrumbs and item metadata. |
 | **Details** | Gets a file or folder's details such as Type, Size, Location, and Modified date. |
 | **Download** | Downloads the selected file or folder as a ZIP archive from OneDrive. |
-| **Upload** | Uploads one or more files to OneDrive. Supports drag-and-drop and request-size limits. |
+| **Upload** | Uploads one or more files to OneDrive. It supports drag-and-drop, multiple files, and large request sizes. |
 | **Create** | Creates a new folder at the selected location. |
 | **Delete** | Deletes the selected folders or files. |
 | **Copy** | Copies the selected files or folders to a target location, with conflict handling. |
@@ -28,6 +28,8 @@ This provider must be registered as an Azure Active Directory application and gr
 
 For details on registering an application, see [Azure AD App Registration](https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app).
 
+> **Important:** The Azure AD application and the OneDrive storage account must belong to the **same directory (tenant)**. The provider authenticates as the application principal and accesses the drive under that tenant.
+
 ## Configuration
 
 Open `appsettings.json` and set your OneDrive account details under the `OneDriveSettings` section:
@@ -38,8 +40,8 @@ Open `appsettings.json` and set your OneDrive account details under the `OneDriv
     "TenantId": "<--Tenant Id-->",
     "ClientId": "<--Client Id-->",
     "ClientSecret": "<--Client Secret-->",
-    "DriveId": "<--Drive Id (optional)-->",
-    "RootFolderId": ""
+    "DriveId": "<--Drive Id-->",
+    "RootFolderId": "<--Root Folder Id-->"
   }
 }
 ```
@@ -49,18 +51,21 @@ Open `appsettings.json` and set your OneDrive account details under the `OneDriv
 | `TenantId` | Azure AD tenant ID of the registered application. |
 | `ClientId` | Application (client) ID of the registered application. |
 | `ClientSecret` | Client secret value created for the registered application. |
-| `DriveId` | Optional. The OneDrive drive ID to use. If omitted, the default drive is selected automatically. |
+| `DriveId` | The OneDrive drive ID to access. |
 | `RootFolderId` | Optional. The OneDrive item ID of a specific folder to scope the File Manager root. When set, the File Manager will display only this folder and its contents. |
 
-## Access Rules
+## Nested Root Folder Support
 
-The provider contains a simple, built-in access rule example. You can customize these rules in `Controllers/OneDriveProviderController.cs` inside the `GetRules()` method.
+The provider supports loading the File Manager starting from a specific OneDrive folder instead of the drive root. To enable this, set the `RootFolderId` value in `appsettings.json` with the OneDrive item ID of the folder you want to use as the root.
 
-Three default rules are configured:
+When `RootFolderId` is configured:
 
-1. **Files** - Full access (read, write, copy, download, upload).
-2. **Microsoft Copilot Chat Files** - Read-only access (read and download only).
-3. **Apps** - Hidden and inaccessible to users.
+- The File Manager treats the specified folder as the root level.
+- Only the contents of that folder are displayed.
+- Navigation, breadcrumbs, and file operations are scoped within this nested root.
+- The specified folder itself is not shown in the tree; the user effectively starts inside it.
+
+Leave `RootFolderId` empty to use the OneDrive drive root as the File Manager root.
 
 ## How to Run This Application
 
@@ -89,93 +94,62 @@ dotnet build
 dotnet run
 ```
 
-By default, the application listens on `http://0.0.0.0:62870` and can also be accessed via `http://localhost:62870`.
-
-To verify the service is running, navigate to:
+The project will be hosted on `http://localhost`. To ensure the OneDrive service is running, navigate to:
 
 ```
-http://localhost:62870/api/test
+http://localhost:<port-number>/api/test
 ```
 
 ## File Manager AjaxSettings
 
-Configure the File Manager component's `ajaxSettings` to point to the provider endpoints. Replace `<port-number>` with the actual port used by the provider.
-
-If the controller name in your solution is `OneDriveProviderController`, the route resolves to:
-
-```
-api/OneDriveProvider/<action-name>
-```
-
-### Basic File Operations
+To access the basic actions such as Read, Delete, Copy, Move, Rename, Search, and Get Details of File Manager using the OneDrive service, map the following code snippet in the `AjaxSettings` property of the File Manager. Here, the `hostUrl` will be your locally hosted port number.
 
 ```javascript
-var hostUrl = 'http://localhost:62870/';
-var ajaxSettings = {
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
     url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations'
-};
+}
 ```
 
-### With Download Support
+### File Download AjaxSettings
+
+To perform the download operation, initialize the `downloadUrl` property in `ajaxSettings` of the File Manager component.
 
 ```javascript
-var hostUrl = 'http://localhost:62870/';
-var ajaxSettings = {
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
     url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations',
     downloadUrl: hostUrl + 'api/OneDriveProvider/OneDriveDownload'
-};
+}
 ```
 
-### With Upload Support
+### File Upload AjaxSettings
+
+To perform the upload operation, initialize the `uploadUrl` property in `ajaxSettings` of the File Manager component.
 
 ```javascript
-var hostUrl = 'http://localhost:62870/';
-var ajaxSettings = {
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
     url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations',
     uploadUrl: hostUrl + 'api/OneDriveProvider/OneDriveUpload'
-};
+}
 ```
 
-### With Image Preview Support
+### File Image Preview AjaxSettings
+
+To enable image preview support in the File Manager component, initialize the `getImageUrl` property in `ajaxSettings` of the File Manager component.
 
 ```javascript
-var hostUrl = 'http://localhost:62870/';
-var ajaxSettings = {
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
     url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations',
     getImageUrl: hostUrl + 'api/OneDriveProvider/OneDriveGetImage'
-};
+}
 ```
 
-### Complete AjaxSettings Example
+The FileManager will be rendered as the following.
 
-```javascript
-var hostUrl = 'http://localhost:62870/';
-var ajaxSettings = {
-    url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations',
-    downloadUrl: hostUrl + 'api/OneDriveProvider/OneDriveDownload',
-    uploadUrl: hostUrl + 'api/OneDriveProvider/OneDriveUpload',
-    getImageUrl: hostUrl + 'api/OneDriveProvider/OneDriveGetImage'
-};
-```
-
-The provider exposes the following endpoints:
-
-| Endpoint | Action |
-|---|---|
-| `api/OneDriveProvider/OneDriveFileOperations` | Read, create, delete, copy, move, rename, details, search. |
-| `api/OneDriveProvider/OneDriveUpload` | Upload files. |
-| `api/OneDriveProvider/OneDriveDownload` | Download selected files or folders as a ZIP. |
-| `api/OneDriveProvider/OneDriveGetImage` | Retrieve image content for preview. |
-
-## Running the File Manager
-
-After the application is running and the File Manager component is configured with the AjaxSettings above, bind the component in your EJ2 or Blazor application:
-
-```html
-<ejs-filemanager id="file-manager" ajaxSettings="ajaxSettings"></ejs-filemanager>
-```
-
-The File Manager will render and allow end users to interact with their OneDrive files.
+![File Manager](https://ej2.syncfusion.com/products/images/file-manager/readme.gif)
 
 ## Support
 
