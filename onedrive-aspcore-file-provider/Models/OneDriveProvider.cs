@@ -29,19 +29,26 @@ namespace OneDriveASPCoreFileProvider.Models
         public AccessDetails AccessDetails { get; set; } = new AccessDetails();
         private string accessMessage { get; set; } = string.Empty;
 
-        public void RegisterOneDrive(string tenantId, string clientId, string clientSecret)
+        public void RegisterOneDrive(string tenantId, string clientId, string clientSecret, string driveId)
         {
+            if (string.IsNullOrWhiteSpace(tenantId))
+            {
+                throw new ArgumentNullException(nameof(tenantId), "OneDriveSettings:TenantId is missing in appsettings.json. The provider uses app-only authentication and requires a valid Azure AD tenant ID.");
+            }
+            if (string.IsNullOrWhiteSpace(clientId))
+            {
+                throw new ArgumentNullException(nameof(clientId), "OneDriveSettings:ClientId is missing in appsettings.json. The provider uses app-only authentication and requires a valid Azure AD application (client) ID.");
+            }
+            if (string.IsNullOrWhiteSpace(clientSecret))
+            {
+                throw new ArgumentNullException(nameof(clientSecret), "OneDriveSettings:ClientSecret is missing in appsettings.json. The provider uses app-only authentication and requires a valid client secret.");
+            }
+            if (string.IsNullOrWhiteSpace(driveId))
+            {
+                throw new ArgumentNullException(nameof(driveId), "OneDriveSettings:DriveId is missing in appsettings.json. The provider uses app-only (client credentials) authentication, so an explicit drive ID is required. The /me endpoint cannot be used to resolve a drive for an application principal.");
+            }
             _tokenCredential = new ClientSecretCredential(tenantId, clientId, clientSecret);
             graphServiceClient = new GraphServiceClient(_tokenCredential, _scopes);
-        }
-
-        public async Task ResolveDriveAsync()
-        {
-            if (string.IsNullOrEmpty(driveId))
-            {
-                Drive drive = await graphServiceClient.Me.Drive.GetAsync();
-                driveId = drive?.Id;
-            }
         }
 
         public async Task<DriveItem> GetRootItemAsync()
@@ -60,7 +67,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileManagerResponse> GetFilesAsync(string path, bool showHiddenItems, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             FileManagerResponse readResponse = new FileManagerResponse();
             try
             {
@@ -199,7 +205,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileManagerResponse> CreateAsync(string path, string name, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             FileManagerResponse createResponse = new FileManagerResponse();
             try
             {
@@ -257,7 +262,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileManagerResponse> AsyncDelete(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             FileManagerResponse removeResponse = new FileManagerResponse();
             try
             {
@@ -300,7 +304,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileManagerResponse> RenameAsync(string path, string name, string newName, bool replace, bool showFileExtension, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
@@ -373,7 +376,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileManagerResponse> CopyOrMoveDriveItemAsync(string action, string path, string targetPath, string[] names, string[] replacedItemNames, FileManagerDirectoryContent TargetData, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             FileManagerResponse moveResponse = new FileManagerResponse();
             List<FileManagerDirectoryContent> transferredList = new List<FileManagerDirectoryContent>();
             try
@@ -603,7 +605,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileManagerResponse> DetailsAsync(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             FileManagerResponse detailsResponse = new FileManagerResponse();
             FileDetails detailFiles = new FileDetails();
             try
@@ -656,7 +657,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileManagerResponse> SearchAsync(string path, string searchString, bool showHiddenItems, bool caseSensitive, string filterType, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             FileManagerResponse searchResponse = new FileManagerResponse();
             try
             {
@@ -787,7 +787,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public virtual async Task<FileManagerResponse> AsyncUpload(string path, IList<IFormFile> uploadFiles, string action, FileManagerDirectoryContent[] data, long size = 0)
         {
-            await ResolveDriveAsync();
             FileManagerResponse uploadResponse = new FileManagerResponse();
             try
             {
@@ -1123,7 +1122,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileStreamResult> DownloadSelectedDriveItemsAsync(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             try
             {
                 if (data.Length == 1 && data[0].IsFile)
@@ -1203,7 +1201,6 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileStreamResult> GetImageAsync(string path, string id, bool allowCompress, params FileManagerDirectoryContent[] data)
         {
-            await ResolveDriveAsync();
             await GetDriveItemWithPathCheckAsync(id);
             Stream stream = await graphServiceClient.Drives[driveId].Items[id].Content.GetAsync();
             return new FileStreamResult(stream, "application/octet-stream");

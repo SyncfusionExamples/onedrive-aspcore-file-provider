@@ -21,7 +21,7 @@ The following actions can be performed using the OneDrive file system provider:
 
 ## Prerequisites
 
-This provider must be registered as an Azure Active Directory application and granted the following Microsoft Graph **application permissions** with admin consent:
+This provider uses **app-only (client credentials) authentication**. It must be registered as an Azure Active Directory application and granted the following Microsoft Graph **application permissions** with admin consent:
 
 - **Files.Read.All**
 - **Files.ReadWrite.All**
@@ -29,6 +29,8 @@ This provider must be registered as an Azure Active Directory application and gr
 For details on registering an application, see [Azure AD App Registration](https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app).
 
 > **Important:** The Azure AD application and the OneDrive storage account must belong to the **same directory (tenant)**. The provider authenticates as the application principal and accesses the drive under that tenant.
+
+> **Note:** Because the provider authenticates with application permissions (no signed-in user), the `/me` endpoint cannot be used for drive discovery. A valid **DriveId** must therefore be configured explicitly in `appsettings.json`. The application validates the required settings at startup and fails fast with a clear configuration error if `TenantId`, `ClientId`, `ClientSecret`, or `DriveId` is missing.
 
 ## Configuration
 
@@ -51,7 +53,7 @@ Open `appsettings.json` and set your OneDrive account details under the `OneDriv
 | `TenantId` | Azure AD tenant ID of the registered application. |
 | `ClientId` | Application (client) ID of the registered application. |
 | `ClientSecret` | Client secret value created for the registered application. |
-| `DriveId` | The OneDrive drive ID to access. |
+| `DriveId` | **Required.** The OneDrive drive ID to access. Because the provider uses app-only authentication, the drive cannot be resolved from a signed-in user and must be specified explicitly. |
 | `RootFolderId` | Optional. The OneDrive item ID of a specific folder to scope the File Manager root. When set, the File Manager will display only this folder and its contents. |
 
 ## Nested Root Folder Support

@@ -19,11 +19,11 @@ namespace OneDriveASPCoreFileProvider.Controllers
 
         public OneDriveProviderController(IConfiguration configuration)
         {
-            this.operation = new OneDriveProvider();
             var oneDriveSettings = configuration.GetSection("OneDriveSettings");
+            // Validate configuration at startup so misconfiguration fails fast with a clear error
+            this.operation.RegisterOneDrive(oneDriveSettings["TenantId"], oneDriveSettings["ClientId"], oneDriveSettings["ClientSecret"], oneDriveSettings["DriveId"]);
             this.operation.driveId = oneDriveSettings["DriveId"];
             this.operation.rootFolderId = oneDriveSettings["RootFolderId"];
-            this.operation.RegisterOneDrive(oneDriveSettings["TenantId"], oneDriveSettings["ClientId"], oneDriveSettings["ClientSecret"]);
         }
 
         [Route("OneDriveFileOperations")]
