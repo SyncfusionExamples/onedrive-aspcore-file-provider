@@ -80,19 +80,23 @@ namespace OneDriveASPCoreFileProvider.Models
                     }
                     else if (data != null && data.Length > 0 && !string.IsNullOrEmpty(data[0].Id))
                     {
-                        // Primary: Use ID from File Manager request (fastest)
-                        root = await graphServiceClient.Drives[driveId].Items[data[0].Id].GetAsync();
+                        // Primary: Use ID from File Manager request (fastest) - enforce root boundary
+                        root = await EnsureItemWithinRootAsync(data[0].Id);
                     }
                     else if (!string.IsNullOrEmpty(path) && path != "/" && IsGraphItemId(path))
                     {
-                        // Secondary: Detect if path itself is a Graph ID (e.g., from persistence/breadcrumb)
-                        root = await graphServiceClient.Drives[driveId].Items[path.Trim('/')].GetAsync();
+                        // Secondary: Detect if path itself is a Graph ID (e.g., from persistence/breadcrumb) - enforce root boundary
+                        root = await EnsureItemWithinRootAsync(path.Trim('/'));
                     }
                     else
                     {
-                        // Fallback: Resolve name-based path to folder (slowest, but necessary)
-                        var configuredRoot = await GetRootItemAsync();
-                        root = await ResolveFolderPathAsync(path, configuredRoot);
+                        // Fallback: Resolve name-based path to folder (slowest, but necessary) - enforce root boundary
+                        root = await ResolveFolderPathAsync(path, await GetRootItemAsync());
+                    }
+                    // Enforce root boundary for the resolved item (covers all resolution paths).
+                    if (root != null && !await IsItemUnderRoot(root))
+                    {
+                        throw new UnauthorizedAccessException("The requested folder is outside the configured root folder boundary.");
                     }
                 }
                 catch
@@ -209,6 +213,8 @@ namespace OneDriveASPCoreFileProvider.Models
             try
             {
                 string parentId = data?.FirstOrDefault()?.Id ?? (await GetRootItemAsync())?.Id;
+                // Enforce root boundary on the create destination
+                await EnsureItemWithinRootAsync(parentId);
                 AccessPermission PathPermission = GetPathPermission(data[0].FilterPath + data[0].Name, false);
 
                 var targetChildren = await graphServiceClient.Drives[driveId].Items[parentId].Children.GetAsync();
@@ -268,6 +274,8 @@ namespace OneDriveASPCoreFileProvider.Models
                 List<FileManagerDirectoryContent> deletedItems = new List<FileManagerDirectoryContent>();
                 foreach (FileManagerDirectoryContent item in data)
                 {
+                    // Enforce root boundary before deleting a request-supplied item ID
+                    await EnsureItemWithinRootAsync(item.Id);
                     AccessPermission PathPermission = GetPathPermission(item.FilterPath + item.Name, item.IsFile);
                     if (PathPermission != null && (!PathPermission.Read || !PathPermission.Write))
                     {
@@ -307,6 +315,8 @@ namespace OneDriveASPCoreFileProvider.Models
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
+                // Enforce root boundary before renaming a request-supplied item ID
+                await EnsureItemWithinRootAsync(data[0].Id);
                 AccessPermission PathPermission = GetPathPermission(data[0].FilterPath + data[0].Name, data[0].IsFile);
                 if (PathPermission != null && (!PathPermission.Read || !PathPermission.Write))
                 {
@@ -385,6 +395,12 @@ namespace OneDriveASPCoreFileProvider.Models
                     return moveResponse;
                 }
 
+                // Enforce root boundary on every source item (do not trust client-supplied FilterPath/ParentId)
+                foreach (FileManagerDirectoryContent sourceItem in data)
+                {
+                    await EnsureItemWithinRootAsync(sourceItem.Id);
+                }
+
                 AccessPermission sourcePermission = GetPathPermission(data[0].FilterPath + data[0].Name, data[0].IsFile);
                 if (action == "copy")
                 {
@@ -408,6 +424,9 @@ namespace OneDriveASPCoreFileProvider.Models
                     moveResponse.Error = new ErrorDetails { Code = "404", Message = "Target location is not available." };
                     return moveResponse;
                 }
+
+                // Enforce root boundary on the copy/move destination as well
+                await EnsureItemWithinRootAsync(TargetData.Id);
 
                 var targetChildrenResponse = await graphServiceClient.Drives[driveId].Items[TargetData.Id].Children.GetAsync();
                 var targetItems = targetChildrenResponse.Value ?? new List<DriveItem>();
@@ -609,6 +628,11 @@ namespace OneDriveASPCoreFileProvider.Models
             FileDetails detailFiles = new FileDetails();
             try
             {
+                // Enforce root boundary on every item being detailed
+                foreach (var item in data)
+                {
+                    await EnsureItemWithinRootAsync(item.Id);
+                }
                 if (data.Length == 0 || data.Length == 1)
                 {
                     var root = data.FirstOrDefault();
@@ -688,6 +712,8 @@ namespace OneDriveASPCoreFileProvider.Models
                 if (data != null && data.Length > 0 && !string.IsNullOrEmpty(data[0].Id))
                 {
                     searchStartId = data[0].Id;
+                    // Enforce root boundary on the search start folder
+                    await EnsureItemWithinRootAsync(searchStartId);
                 }
                 else
                 {
@@ -716,6 +742,16 @@ namespace OneDriveASPCoreFileProvider.Models
 
         private async Task<bool> IsItemUnderRoot(DriveItem item)
         {
+            // No configured root boundary: every item on the drive is permitted.
+            if (string.IsNullOrEmpty(rootFolderId))
+            {
+                return true;
+            }
+            // The configured root folder itself is within the boundary.
+            if (item?.Id == rootFolderId)
+            {
+                return true;
+            }
             var current = item;
             while (current?.ParentReference != null && !string.IsNullOrEmpty(current.ParentReference.Id))
             {
@@ -733,6 +769,27 @@ namespace OneDriveASPCoreFileProvider.Models
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Shared root-boundary validation. Fetches the item (verifying it belongs to the
+        /// configured drive) and ensures it is the configured RootFolderId or a descendant
+        /// of it. Throws UnauthorizedAccessException when the item lies outside the root
+        /// boundary. Must be called before any operation reads or modifies a request-supplied
+        /// item ID (do not trust client-supplied Path/ParentId/FilterPath as proof of containment).
+        /// </summary>
+        private async Task<DriveItem> EnsureItemWithinRootAsync(string itemId)
+        {
+            var driveItem = await GetDriveItemWithPathCheckAsync(itemId);
+            if (driveItem == null)
+            {
+                throw new UnauthorizedAccessException("The requested item does not exist on the drive.");
+            }
+            if (!await IsItemUnderRoot(driveItem))
+            {
+                throw new UnauthorizedAccessException("The requested item is outside the configured root folder boundary.");
+            }
+            return driveItem;
         }
 
         private async Task SearchChildrenRecursiveAsync(string parentId, Regex searchRegex, List<FileManagerDirectoryContent> results)
@@ -794,6 +851,9 @@ namespace OneDriveASPCoreFileProvider.Models
                 {
                     throw new ArgumentException("The upload destination folder was not provided.");
                 }
+
+                // Enforce root boundary on the upload destination folder
+                await EnsureItemWithinRootAsync(data[0].Id);
 
                 AccessPermission PathPermission = GetPathPermission(data[0].FilterPath + data[0].Name, false);
                 if (PathPermission != null && (!PathPermission.Read || !PathPermission.Upload))
@@ -1131,7 +1191,8 @@ namespace OneDriveASPCoreFileProvider.Models
                     {
                         throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. Access is denied.");
                     }
-                    await GetDriveItemWithPathCheckAsync(data[0].Id);
+                    // Enforce root boundary before streaming content
+                    await EnsureItemWithinRootAsync(data[0].Id);
                     Stream stream = await graphServiceClient.Drives[driveId].Items[data[0].Id].Content.GetAsync();
                     return new FileStreamResult(stream, "application/octet-stream") { FileDownloadName = data[0].Name };
                 }
@@ -1146,7 +1207,8 @@ namespace OneDriveASPCoreFileProvider.Models
                         {
                             throw new UnauthorizedAccessException("'" + item.Name + "' is not accessible. Access is denied.");
                         }
-                        var driveItem = await GetDriveItemWithPathCheckAsync(item.Id);
+                        // Enforce root boundary before adding each item to the ZIP
+                        var driveItem = await EnsureItemWithinRootAsync(item.Id);
                         if (driveItem.File != null)
                         {
                             await AddFileToZipAsync(archive, item.Id, driveItem.Name, driveItem.Name);
@@ -1201,7 +1263,8 @@ namespace OneDriveASPCoreFileProvider.Models
 
         public async Task<FileStreamResult> GetImageAsync(string path, string id, bool allowCompress, params FileManagerDirectoryContent[] data)
         {
-            await GetDriveItemWithPathCheckAsync(id);
+            // Enforce root boundary before streaming image content
+            await EnsureItemWithinRootAsync(id);
             Stream stream = await graphServiceClient.Drives[driveId].Items[id].Content.GetAsync();
             return new FileStreamResult(stream, "application/octet-stream");
         }

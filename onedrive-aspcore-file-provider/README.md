@@ -65,6 +65,7 @@ When `RootFolderId` is configured:
 - The File Manager treats the specified folder as the root level.
 - Only the contents of that folder are displayed.
 - Navigation, breadcrumbs, and file operations are scoped within this nested root.
+- The provider **enforces this boundary server-side**: every operation (read, details, search, create, rename, delete, copy, move, upload, download, and image preview) validates that the requested item is the configured root folder or a descendant of it. Requests referencing valid item IDs outside the root are rejected with an access-denied error.
 
 Leave `RootFolderId` empty to use the OneDrive drive root as the File Manager root.
 
