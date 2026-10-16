@@ -217,8 +217,8 @@ namespace OneDriveASPCoreFileProvider.Models
                 await EnsureItemWithinRootAsync(parentId);
                 AccessPermission PathPermission = GetPathPermission(data[0].FilterPath + data[0].Name, false);
 
-                var targetChildren = await graphServiceClient.Drives[driveId].Items[parentId].Children.GetAsync();
-                if (targetChildren.Value.Any(targetItem => targetItem.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                var targetChildren = await GetAllChildrenAsync(parentId);
+                if (targetChildren.Any(targetItem => targetItem.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
                 {
                     createResponse.Error = new ErrorDetails
                     {
@@ -334,8 +334,8 @@ namespace OneDriveASPCoreFileProvider.Models
                         parentId = rootFolderId;
                     }
                 }
-                var targetChildren = await graphServiceClient.Drives[driveId].Items[parentId].Children.GetAsync();
-                if (targetChildren.Value.Any(targetItem => targetItem.Name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
+                var targetChildren = await GetAllChildrenAsync(parentId);
+                if (targetChildren.Any(targetItem => targetItem.Name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
                 {
                     renameResponse.Error = new ErrorDetails
                     {
@@ -428,8 +428,7 @@ namespace OneDriveASPCoreFileProvider.Models
                 // Enforce root boundary on the copy/move destination as well
                 await EnsureItemWithinRootAsync(TargetData.Id);
 
-                var targetChildrenResponse = await graphServiceClient.Drives[driveId].Items[TargetData.Id].Children.GetAsync();
-                var targetItems = targetChildrenResponse.Value ?? new List<DriveItem>();
+                var targetItems = await GetAllChildrenAsync(TargetData.Id);
 
                 List<string> existFiles = new List<string>();
                 List<FileManagerDirectoryContent> otherFiles = new List<FileManagerDirectoryContent>();
@@ -723,10 +722,20 @@ namespace OneDriveASPCoreFileProvider.Models
 
                 // Match the wildcard pattern locally because Graph search does not support '*'.
                 var files = new List<FileManagerDirectoryContent>();
-                await SearchChildrenRecursiveAsync(searchStartId, searchRegex, files);
+                var searchErrors = new List<string>();
+                await SearchChildrenRecursiveAsync(searchStartId, searchRegex, files, searchErrors);
 
                 searchResponse.Files = files;
                 searchResponse.CWD = data?.FirstOrDefault();
+                if (searchErrors.Count > 0)
+                {
+                    // Explicitly represent partial results rather than returning an incomplete list silently.
+                    searchResponse.Error = new ErrorDetails
+                    {
+                        Code = "417",
+                        Message = "Search completed partially: " + string.Join("; ", searchErrors)
+                    };
+                }
                 return searchResponse;
             }
             catch (Exception e)
@@ -792,12 +801,12 @@ namespace OneDriveASPCoreFileProvider.Models
             return driveItem;
         }
 
-        private async Task SearchChildrenRecursiveAsync(string parentId, Regex searchRegex, List<FileManagerDirectoryContent> results)
+        private async Task SearchChildrenRecursiveAsync(string parentId, Regex searchRegex, List<FileManagerDirectoryContent> results, List<string> searchErrors)
         {
             try
             {
-                var children = await graphServiceClient.Drives[driveId].Items[parentId].Children.GetAsync();
-                var items = children?.Value ?? new List<DriveItem>();
+                // Follow Graph continuation pages so large folders are searched completely.
+                var items = await GetAllChildrenAsync(parentId);
 
                 foreach (var item in items)
                 {
@@ -812,22 +821,24 @@ namespace OneDriveASPCoreFileProvider.Models
                         {
                             results.Add(await ToFileManagerDirectoryContent(item));
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            // Skip items that fail to convert
+                            // Record items that fail to convert instead of silently dropping them.
+                            searchErrors.Add($"Failed to read item '{item.Name}': {ex.Message}");
                         }
                     }
 
                     // Recurse into folders
                     if (item.Folder != null)
                     {
-                        await SearchChildrenRecursiveAsync(item.Id, searchRegex, results);
+                        await SearchChildrenRecursiveAsync(item.Id, searchRegex, results, searchErrors);
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore inaccessible folders during search
+                // Record inaccessible folders so the response explicitly represents partial results.
+                searchErrors.Add($"Failed to read folder '{parentId}': {ex.Message}");
             }
         }
 
@@ -1059,6 +1070,31 @@ namespace OneDriveASPCoreFileProvider.Models
             return null;
         }
 
+        /// <summary>
+        /// Enumerates every child item of a folder, following Graph continuation pages
+        /// (@odata.nextLink) until the list is exhausted. Callers must not rely on a
+        /// single Children.GetAsync() page because large folders are paginated.
+        /// </summary>
+        private async Task<List<DriveItem>> GetAllChildrenAsync(string parentId)
+        {
+            var allItems = new List<DriveItem>();
+            var childrenRequest = graphServiceClient.Drives[driveId].Items[parentId].Children;
+            var children = await childrenRequest.GetAsync();
+            while (children != null)
+            {
+                if (children.Value != null)
+                {
+                    allItems.AddRange(children.Value);
+                }
+                if (string.IsNullOrEmpty(children.OdataNextLink))
+                {
+                    break;
+                }
+                children = await childrenRequest.WithUrl(children.OdataNextLink).GetAsync();
+            }
+            return allItems;
+        }
+
         private string GetChunkStagingPath(string parentId, string fileName)
         {
             byte[] key = SHA256.HashData(Encoding.UTF8.GetBytes(parentId + "\0" + fileName));
@@ -1250,8 +1286,9 @@ namespace OneDriveASPCoreFileProvider.Models
         private async Task AddFolderToZipAsync(ZipArchive archive, DriveItem folderItem, string currentFolderPath)
         {
             archive.CreateEntry(currentFolderPath + "/");
-            var folderContents = await graphServiceClient.Drives[driveId].Items[folderItem.Id].Children.GetAsync();
-            foreach (var item in folderContents.Value)
+            // Follow Graph continuation pages so large folders are zipped completely.
+            var folderContents = await GetAllChildrenAsync(folderItem.Id);
+            foreach (var item in folderContents)
             {
                 string itemPath = Path.Combine(currentFolderPath, item.Name);
                 if (item.File != null)
@@ -1330,24 +1367,22 @@ namespace OneDriveASPCoreFileProvider.Models
             List<FileManagerDirectoryContent> child = new List<FileManagerDirectoryContent>();
             try
             {
-                var children = await graphServiceClient.Drives[driveId].Items[itemId].Children.GetAsync();
-                if (children?.Value != null)
+                // Follow Graph continuation pages so large folders are listed completely.
+                var children = await GetAllChildrenAsync(itemId);
+                foreach (var item in children)
                 {
-                    foreach (var item in children.Value)
+                    try
                     {
-                        try
+                        var converted = await ToFileManagerDirectoryContent(item);
+                        if (converted != null)
                         {
-                            var converted = await ToFileManagerDirectoryContent(item);
-                            if (converted != null)
-                            {
-                                child.Add(converted);
-                            }
+                            child.Add(converted);
                         }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[Error] Failed to convert child item: {ex.Message}");
-                            // Continue with next item instead of crashing
-                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Error] Failed to convert child item: {ex.Message}");
+                        // Continue with next item instead of crashing
                     }
                 }
             }
@@ -1377,8 +1412,8 @@ namespace OneDriveASPCoreFileProvider.Models
         {
             try
             {
-                var children = await graphServiceClient.Drives[driveId].Items[item.Id].Children.GetAsync();
-                return children.Value.Any(child => child.Folder != null);
+                var children = await GetAllChildrenAsync(item.Id);
+                return children.Any(child => child.Folder != null);
             }
             catch { return false; }
         }
