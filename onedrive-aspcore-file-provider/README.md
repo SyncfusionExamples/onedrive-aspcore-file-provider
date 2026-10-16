@@ -11,7 +11,7 @@ The following actions can be performed using the OneDrive file system provider:
 | **Read** | Reads the files and folders from OneDrive, including navigation breadcrumbs and item metadata. |
 | **Details** | Gets a file or folder's details such as Type, Size, Location, and Modified date. |
 | **Download** | Downloads the selected file or folder as a ZIP archive from OneDrive. |
-| **Upload** | Uploads one or more files to OneDrive. It supports drag-and-drop, multiple files, and large request sizes. |
+| **Upload** | Uploads files to OneDrive. It accepts uploaded media with the following characteristics: <ul><li>Maximum file size: 250MB</li><li>Accepted Media MIME types: `*/*`</li></ul> |
 | **Create** | Creates a new folder at the selected location. |
 | **Delete** | Deletes the selected folders or files. |
 | **Copy** | Copies the selected files or folders to a target location, with conflict handling. |
@@ -51,7 +51,7 @@ Open `appsettings.json` and set your OneDrive account details under the `OneDriv
 | `TenantId` | Azure AD tenant ID of the registered application. |
 | `ClientId` | Application (client) ID of the registered application. |
 | `ClientSecret` | Client secret value created for the registered application. |
-| `DriveId` | **Required.** The OneDrive drive ID to access. |
+| `DriveId` | The OneDrive drive ID to access. |
 | `RootFolderId` | The OneDrive item ID of a folder to scope the File Manager. When set, only the files and folders under that folder are displayed. When not set, the entire OneDrive files and folders are displayed. |
 
 ## Nested Root Folder Support
