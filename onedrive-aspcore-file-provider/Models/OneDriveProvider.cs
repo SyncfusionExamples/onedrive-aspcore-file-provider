@@ -28,6 +28,8 @@ namespace OneDriveASPCoreFileProvider.Models
         public string rootFolderId { get; set; } = string.Empty;
         public AccessDetails AccessDetails { get; set; } = new AccessDetails();
         private string accessMessage { get; set; } = string.Empty;
+        // Cached drive-root item ID used to build FilterId values without extra Graph calls.
+        private string cachedRootItemId { get; set; } = string.Empty;
 
         public void RegisterOneDrive(string tenantId, string clientId, string clientSecret, string driveId)
         {
@@ -1357,7 +1359,7 @@ namespace OneDriveASPCoreFileProvider.Models
             file.DateCreated = item?.CreatedDateTime?.DateTime ?? DateTime.MinValue;
             file.HasChild = (item?.Folder != null) && await HasChild(item);
             file.Type = Path.GetExtension(item?.Name ?? string.Empty);
-            file.FilterId = GetFilterIdFromParentReference(item);  // Optimized: zero API calls
+            file.FilterId = await GetFilterIdFromParentReference(item);  // Slash-prefixed ID path, zero extra API calls after root cache
             
             // Try optimized path parsing first, fall back to async if needed
             file.FilterPath = GetFilterPathFromParentReference(item);
@@ -1458,14 +1460,41 @@ namespace OneDriveASPCoreFileProvider.Models
         }
 
         /// <summary>
-        /// Optimized: Get parent ID path directly from ParentReference without recursive API calls
+        /// Builds the FilterId (slash-delimited ancestor item-ID path) from ParentReference.
+        /// The File Manager (especially the Blazor FileManager, which builds its data key as
+        /// FilterId + Name) requires this value to be slash-prefixed - e.g. "/<rootId>/<parentId>/"
+        /// - otherwise operations like rename crash with ArgumentOutOfRangeException when the
+        /// key contains no slash. Uses the cached root item ID and the item's immediate
+        /// ParentReference.Id, so no extra Graph API calls are made per entry.
         /// </summary>
-        private string GetFilterIdFromParentReference(DriveItem item)
+        private async Task<string> GetFilterIdFromParentReference(DriveItem item)
         {
-            // For now, return empty string since FilterId is mainly for internal tracking
-            // and File Manager operations use actual ID field instead
-            // This can be lazily computed if needed in future
-            return "";
+            if (item == null)
+            {
+                return "/";
+            }
+            // The drive/root item itself has an empty FilterId.
+            if (string.IsNullOrEmpty(item.ParentReference?.Id))
+            {
+                return "/";
+            }
+            // Resolve the root item ID once and cache it.
+            if (string.IsNullOrEmpty(cachedRootItemId))
+            {
+                var rootItem = await GetRootItemAsync();
+                cachedRootItemId = rootItem?.Id ?? string.Empty;
+            }
+            if (string.IsNullOrEmpty(cachedRootItemId))
+            {
+                return "/";
+            }
+            // Immediate parent is the root: "/<rootId>/"
+            if (item.ParentReference.Id == cachedRootItemId)
+            {
+                return "/" + cachedRootItemId + "/";
+            }
+            // Nested item: "/<rootId>/<parentId>/"
+            return "/" + cachedRootItemId + "/" + item.ParentReference.Id + "/";
         }
 
         /// <summary>
