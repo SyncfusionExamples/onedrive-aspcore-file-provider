@@ -464,9 +464,10 @@ namespace OneDriveASPCoreFileProvider.Models
                     var existingTarget = targetItems.FirstOrDefault(t => t.Name.Equals(item.Name, StringComparison.OrdinalIgnoreCase));
                     bool conflict = existingTarget != null;
 
-                    // Syncfusion sends source names chosen for rename in the conflict dialog 
-                    // via 'RenameFiles' (replacedItemNames). In that case we must keep both 
-                    // (existing + copied) by generating a unique destination name.
+                    // Syncfusion conflict-dialog contract: 'RenameFiles' (replacedItemNames) contains
+                    // the source names the user chose to RENAME (keep both). A conflicting name that
+                    // is NOT in that list means the user chose REPLACE: the existing target item is
+                    // deleted and the source takes its place.
                     bool renameThis = conflict && replacedItemNames != null && replacedItemNames.Contains(item.Name);
 
                     string targetName = item.Name;
@@ -474,13 +475,14 @@ namespace OneDriveASPCoreFileProvider.Models
                     {
                         if (renameThis)
                         {
+                            // User chose "keep both" (rename): copy/move under a unique name.
                             targetName = await GenerateUniqueTargetNameAsync(TargetData.Id, item.Name);
                         }
                         else
                         {
-                            // User chose replace or no rename list was provided. We already
-                            // handled the dialog case above, so for safety generate a unique name.
-                            targetName = await GenerateUniqueTargetNameAsync(TargetData.Id, item.Name);
+                            // User chose "replace": remove the existing target item first so the
+                            // source item can take its exact name.
+                            await graphServiceClient.Drives[driveId].Items[existingTarget.Id].DeleteAsync();
                         }
                     }
 
@@ -1427,14 +1429,23 @@ namespace OneDriveASPCoreFileProvider.Models
             catch { throw; }
         }
 
+        /// <summary>
+        /// Determines whether the folder has any child item (file or folder), per the
+        /// File Manager contract. Uses the Graph-provided Folder.ChildCount metadata
+        /// (zero extra API calls) and falls back to enumerating children only when
+        /// the count is not available. A failed Graph request throws rather than
+        /// being reported as an empty folder.
+        /// </summary>
         private async Task<bool> HasChild(DriveItem item)
         {
-            try
+            // Graph returns folder.ChildCount with the item metadata - no extra API call needed.
+            if (item?.Folder?.ChildCount != null)
             {
-                var children = await GetAllChildrenAsync(item.Id);
-                return children.Any(child => child.Folder != null);
+                return item.Folder.ChildCount.Value > 0;
             }
-            catch { return false; }
+            // Fallback: enumerate the first page only - HasChild just needs existence, not the full list.
+            var children = await graphServiceClient.Drives[driveId].Items[item.Id].Children.GetAsync();
+            return children?.Value?.Count > 0;
         }
 
         /// <summary>
