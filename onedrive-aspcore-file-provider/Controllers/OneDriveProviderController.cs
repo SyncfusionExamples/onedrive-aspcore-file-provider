@@ -40,14 +40,18 @@ namespace OneDriveASPCoreFileProvider.Controllers
                 {
                     var item = args.Data[0];
                     // If RootFolderId is configured, block by matching ID.
-                    // If no RootFolderId is set, block only when the item has no parent (drive root).
+                    // If no RootFolderId is set, block by comparing against the actual drive
+                    // root item ID. Do NOT infer "root" from a missing ParentId - the Blazor
+                    // File Manager omits parentId in rename/delete requests, which previously
+                    // caused every such operation to be rejected as a root modification.
                     if (!string.IsNullOrEmpty(this.operation.rootFolderId))
                     {
                         isRootItem = item.Id == this.operation.rootFolderId;
                     }
                     else
                     {
-                        isRootItem = string.IsNullOrEmpty(item.ParentId);
+                        var rootItem = this.operation.GetRootItemAsync().GetAwaiter().GetResult();
+                        isRootItem = rootItem != null && item.Id == rootItem.Id;
                     }
                 }
 

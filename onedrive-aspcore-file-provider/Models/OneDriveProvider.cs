@@ -315,6 +315,15 @@ namespace OneDriveASPCoreFileProvider.Models
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
+                if (data == null || data.Length == 0 || string.IsNullOrEmpty(data[0]?.Id))
+                {
+                    renameResponse.Error = new ErrorDetails
+                    {
+                        Code = "400",
+                        Message = "The item to rename was not provided."
+                    };
+                    return renameResponse;
+                }
                 // Enforce root boundary before renaming a request-supplied item ID
                 await EnsureItemWithinRootAsync(data[0].Id);
                 AccessPermission PathPermission = GetPathPermission(data[0].FilterPath + data[0].Name, data[0].IsFile);
