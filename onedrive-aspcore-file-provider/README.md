@@ -30,8 +30,6 @@ For details on registering an application, see [Azure AD App Registration](https
 
 > **Important:** The Azure AD application and the OneDrive storage account must belong to the **same directory (tenant)**. The provider authenticates as the application principal and accesses the drive under that tenant.
 
-> **Note:** Because the provider authenticates with application permissions (no signed-in user), the `/me` endpoint cannot be used for drive discovery. A valid **DriveId** must therefore be configured explicitly in `appsettings.json`. The application validates the required settings at startup and fails fast with a clear configuration error if `TenantId`, `ClientId`, `ClientSecret`, or `DriveId` is missing.
-
 ## Configuration
 
 Open `appsettings.json` and set your OneDrive account details under the `OneDriveSettings` section:
@@ -53,8 +51,8 @@ Open `appsettings.json` and set your OneDrive account details under the `OneDriv
 | `TenantId` | Azure AD tenant ID of the registered application. |
 | `ClientId` | Application (client) ID of the registered application. |
 | `ClientSecret` | Client secret value created for the registered application. |
-| `DriveId` | **Required.** The OneDrive drive ID to access. Because the provider uses app-only authentication, the drive cannot be resolved from a signed-in user and must be specified explicitly. |
-| `RootFolderId` | Optional. The OneDrive item ID of a specific folder to scope the File Manager root. When set, the File Manager will display only this folder and its contents. |
+| `DriveId` | **Required.** The OneDrive drive ID to access. |
+| `RootFolderId` | The OneDrive item ID of a folder to scope the File Manager. When set, only the files and folders under that folder are displayed. When not set, the entire OneDrive files and folders are displayed. |
 
 ## Nested Root Folder Support
 
@@ -63,11 +61,10 @@ The provider supports loading the File Manager starting from a specific OneDrive
 When `RootFolderId` is configured:
 
 - The File Manager treats the specified folder as the root level.
-- Only the contents of that folder are displayed.
-- Navigation, breadcrumbs, and file operations are scoped within this nested root.
-- The provider **enforces this boundary server-side**: every operation (read, details, search, create, rename, delete, copy, move, upload, download, and image preview) validates that the requested item is the configured root folder or a descendant of it. Requests referencing valid item IDs outside the root are rejected with an access-denied error.
+- Only the files and folders under that folder are displayed.
+- Navigation, breadcrumbs, and file operations are scoped within this folder.
 
-Leave `RootFolderId` empty to use the OneDrive drive root as the File Manager root.
+When `RootFolderId` is not set, the entire OneDrive files and folders are displayed.
 
 ## How to Run This Application
 
