@@ -19,6 +19,7 @@ namespace OneDriveASPCoreFileProvider.Controllers
 
         public OneDriveProviderController(IConfiguration configuration)
         {
+            this.operation = new OneDriveProvider();
             var oneDriveSettings = configuration.GetSection("OneDriveSettings");
             // Validate configuration at startup so misconfiguration fails fast with a clear error
             this.operation.RegisterOneDrive(oneDriveSettings["TenantId"], oneDriveSettings["ClientId"], oneDriveSettings["ClientSecret"], oneDriveSettings["DriveId"]);
@@ -91,7 +92,17 @@ namespace OneDriveASPCoreFileProvider.Controllers
                 PropertyNameCaseInsensitive = true
             };
             dataObject[0] = JsonSerializer.Deserialize<FileManagerDirectoryContent>(data, options);
-            uploadResponse = this.operation.Upload(path, uploadFiles, action, dataObject, size);
+            // The route value for 'action' (the action name 'OneDriveUpload') can shadow the
+            // client-supplied upload action (save/replace/keepboth/remove) from the request.
+            // Prefer the explicit upload action sent by the File Manager.
+            string uploadAction = Request.HasFormContentType && Request.Form != null && Request.Form.ContainsKey("action")
+                ? Request.Form["action"].ToString()
+                : Request.Query["action"].ToString();
+            if (string.IsNullOrEmpty(uploadAction) || uploadAction == "OneDriveUpload")
+            {
+                uploadAction = action;
+            }
+            uploadResponse = this.operation.Upload(path, uploadFiles, uploadAction, dataObject, size);
             if (uploadResponse.Error != null)
             {
                 Response.Clear();

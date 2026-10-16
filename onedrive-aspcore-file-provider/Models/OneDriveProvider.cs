@@ -215,7 +215,7 @@ namespace OneDriveASPCoreFileProvider.Models
                 string parentId = data?.FirstOrDefault()?.Id ?? (await GetRootItemAsync())?.Id;
                 // Enforce root boundary on the create destination
                 await EnsureItemWithinRootAsync(parentId);
-                AccessPermission PathPermission = GetPathPermission(data[0].FilterPath + data[0].Name, false);
+                AccessPermission PathPermission = GetPathPermission(data?[0]?.FilterPath + data?[0]?.Name, false);
 
                 var targetChildren = await GetAllChildrenAsync(parentId);
                 if (targetChildren.Any(targetItem => targetItem.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
@@ -685,7 +685,7 @@ namespace OneDriveASPCoreFileProvider.Models
             FileManagerResponse searchResponse = new FileManagerResponse();
             try
             {
-                AccessPermission permission = GetPathPermission(data[0].FilterPath + (data[0].IsFile ? data[0].Name : Path.GetFileNameWithoutExtension(data[0].Name)), data[0].IsFile);
+                AccessPermission permission = GetPathPermission(data?[0]?.FilterPath + (data?[0]?.IsFile == true ? data[0].Name : Path.GetFileNameWithoutExtension(data?[0]?.Name ?? string.Empty)), data?[0]?.IsFile ?? false);
                 if (permission != null && !permission.Read)
                 {
                     searchResponse.Files = null;
