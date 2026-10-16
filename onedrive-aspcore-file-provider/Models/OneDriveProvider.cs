@@ -704,17 +704,34 @@ namespace OneDriveASPCoreFileProvider.Models
                     throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the read action.");
                 }
 
-                var query = (searchString ?? string.Empty).Trim().Trim('*');
-                var escapedQuery = Regex.Escape(query)
+                // The File Manager client encodes the search filter semantics in the search
+                // string itself via wildcards ("*bin" = endsWith, "bin*" = startsWith,
+                // "*bin*" = contains), matching the reference provider contract. When
+                // wildcards are present, honor them exactly - do NOT strip the stars,
+                // otherwise an endsWith search silently degrades to a contains search
+                // when the client omits/alters filterType. filterType is only used as a
+                // fallback when the client sent a plain string without wildcards.
+                string rawSearch = (searchString ?? string.Empty).Trim();
+                bool hasWildcard = rawSearch.Contains('*') || rawSearch.Contains('?');
+                string escapedRaw = Regex.Escape(rawSearch)
                     .Replace(@"\*", ".*")
                     .Replace(@"\?", ".");
-                var searchPattern = (filterType ?? string.Empty).Trim().ToLowerInvariant() switch
+                string searchPattern;
+                if (hasWildcard)
                 {
-                    "startswith" => "^" + escapedQuery + ".*$",
-                    "endswith" => "^.*" + escapedQuery + "$",
-                    "contains" or "" => "^.*" + escapedQuery + ".*$",
-                    _ => "^.*" + escapedQuery + ".*$"
-                };
+                    searchPattern = "^" + escapedRaw + "$";
+                }
+                else
+                {
+                    var escapedQuery = Regex.Escape(rawSearch);
+                    searchPattern = (filterType ?? string.Empty).Trim().ToLowerInvariant() switch
+                    {
+                        "startswith" => "^" + escapedQuery + ".*$",
+                        "endswith" => "^.*" + escapedQuery + "$",
+                        "contains" or "" => "^.*" + escapedQuery + ".*$",
+                        _ => "^.*" + escapedQuery + ".*$"
+                    };
+                }
                 var searchRegex = new Regex(
                     searchPattern,
                     caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
