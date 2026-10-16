@@ -885,7 +885,16 @@ namespace OneDriveASPCoreFileProvider.Models
                         {
                             System.IO.File.Delete(chunkPath);
                         }
-                        await RemoveItemFromDriveAsync(destinationFolderId, fileName);
+                        var removeResult = await RemoveItemFromDriveAsync(destinationFolderId, fileName);
+                        if (!removeResult.Success)
+                        {
+                            uploadResponse.Error = new ErrorDetails
+                            {
+                                Code = "417",
+                                Message = $"Failed to remove '{fileName}' from the drive: {removeResult.Message}"
+                            };
+                            return uploadResponse;
+                        }
                         continue;
                     }
 
@@ -1100,9 +1109,9 @@ namespace OneDriveASPCoreFileProvider.Models
                 }
                 return (true, "Item deleted successfully");
             }
-            catch
+            catch (Exception ex)
             {
-                return (false, "Item failed to delete");
+                return (false, ex.Message);
             }
         }
 
