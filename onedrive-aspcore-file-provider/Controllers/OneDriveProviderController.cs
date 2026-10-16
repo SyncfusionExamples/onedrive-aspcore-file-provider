@@ -129,6 +129,7 @@ namespace OneDriveASPCoreFileProvider.Controllers
                 new AccessRule { Path = "Apps", Role = "Document Manager", Copy = Permission.Deny, Read = Permission.Deny, Write = Permission.Deny, WriteContents = Permission.Deny, Download = Permission.Deny, Upload = Permission.Deny, IsFile = false }
             };
             accessDetails.AccessRules = Rules;
+            accessDetails.Role = "Document Manager";
             return accessDetails;
         }
     }
