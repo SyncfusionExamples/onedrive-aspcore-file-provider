@@ -1242,30 +1242,49 @@ namespace OneDriveASPCoreFileProvider.Models
                     return new FileStreamResult(stream, "application/octet-stream") { FileDownloadName = data[0].Name };
                 }
 
-                var memoryStream = new MemoryStream();
-                using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+                // Build the ZIP in a temporary file instead of a MemoryStream so peak memory
+                // does not grow with the archive size and stays bounded for concurrent downloads.
+                // DeleteOnClose ensures the temp file is removed when the response stream is disposed.
+                string zipPath = Path.Combine(Path.GetTempPath(), "OneDriveASPCoreFileProvider", "Downloads",
+                    Guid.NewGuid().ToString("N") + ".zip");
+                Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
+                var downloadStream = new FileStream(zipPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 81920,
+                    FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+                try
                 {
-                    foreach (var item in data)
+                    using (var archive = new ZipArchive(downloadStream, ZipArchiveMode.Create, true))
                     {
-                        AccessPermission pathPermission = GetPathPermission(item.FilterPath + (item.IsFile ? item.Name : Path.GetFileNameWithoutExtension(item.Name)), item.IsFile);
-                        if (pathPermission != null && (!pathPermission.Read || !pathPermission.Download))
+                        foreach (var item in data)
                         {
-                            throw new UnauthorizedAccessException("'" + item.Name + "' is not accessible. Access is denied.");
-                        }
-                        // Enforce root boundary before adding each item to the ZIP
-                        var driveItem = await EnsureItemWithinRootAsync(item.Id);
-                        if (driveItem.File != null)
-                        {
-                            await AddFileToZipAsync(archive, item.Id, driveItem.Name, driveItem.Name);
-                        }
-                        else if (driveItem.Folder != null)
-                        {
-                            await AddFolderToZipAsync(archive, driveItem, driveItem.Name);
+                            AccessPermission pathPermission = GetPathPermission(item.FilterPath + (item.IsFile ? item.Name : Path.GetFileNameWithoutExtension(item.Name)), item.IsFile);
+                            if (pathPermission != null && (!pathPermission.Read || !pathPermission.Download))
+                            {
+                                throw new UnauthorizedAccessException("'" + item.Name + "' is not accessible. Access is denied.");
+                            }
+                            // Enforce root boundary before adding each item to the ZIP
+                            var driveItem = await EnsureItemWithinRootAsync(item.Id);
+                            if (driveItem.File != null)
+                            {
+                                await AddFileToZipAsync(archive, item.Id, driveItem.Name, driveItem.Name);
+                            }
+                            else if (driveItem.Folder != null)
+                            {
+                                await AddFolderToZipAsync(archive, driveItem, driveItem.Name);
+                            }
                         }
                     }
+                    // Hand over the temp file for streaming; the OS deletes it when the stream closes.
+                    downloadStream.Seek(0, SeekOrigin.Begin);
+                    return new FileStreamResult(downloadStream, "application/octet-stream")
+                    {
+                        FileDownloadName = "SelectedFiles.zip"
+                    };
                 }
-                memoryStream.Seek(0, SeekOrigin.Begin);
-                return new FileStreamResult(memoryStream, "application/octet-stream") { FileDownloadName = "SelectedFiles.zip" };
+                catch
+                {
+                    await downloadStream.DisposeAsync();
+                    throw;
+                }
             }
             catch
             {
