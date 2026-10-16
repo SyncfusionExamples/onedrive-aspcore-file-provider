@@ -11,7 +11,7 @@ The following actions can be performed using the OneDrive file system provider:
 | **Read** | Reads the files and folders from OneDrive, including navigation breadcrumbs and item metadata. |
 | **Details** | Gets a file or folder's details such as Type, Size, Location, and Modified date. |
 | **Download** | Downloads the selected file or folder as a ZIP archive from OneDrive. |
-| **Upload** | Uploads files to OneDrive. It accepts uploaded media with the following characteristics: <ul><li>Maximum file size: 250MB</li><li>Accepted Media MIME types: `*/*`</li></ul> |
+| **Upload** | Uploads files to OneDrive. |
 | **Create** | Creates a new folder at the selected location. |
 | **Delete** | Deletes the selected folders or files. |
 | **Copy** | Copies the selected files or folders to a target location, with conflict handling. |
