@@ -21,7 +21,6 @@ namespace OneDriveASPCoreFileProvider.Controllers
         {
             this.operation = new OneDriveProvider();
             var oneDriveSettings = configuration.GetSection("OneDriveSettings");
-            // Validate configuration at startup so misconfiguration fails fast with a clear error
             this.operation.RegisterOneDrive(oneDriveSettings["TenantId"], oneDriveSettings["ClientId"], oneDriveSettings["ClientSecret"], oneDriveSettings["DriveId"]);
             this.operation.driveId = oneDriveSettings["DriveId"];
             this.operation.rootFolderId = oneDriveSettings["RootFolderId"];
@@ -33,17 +32,11 @@ namespace OneDriveASPCoreFileProvider.Controllers
             this.operation.AccessDetails = GetRules();
             if (args.Action == "delete" || args.Action == "rename")
             {
-                // Block modification only when the *root* folder itself is the target.
                 bool isRootPath = string.IsNullOrEmpty(args.Path) || args.Path == "/";
                 bool isRootItem = false;
                 if (args.Data != null && args.Data.Length > 0)
                 {
                     var item = args.Data[0];
-                    // If RootFolderId is configured, block by matching ID.
-                    // If no RootFolderId is set, block by comparing against the actual drive
-                    // root item ID. Do NOT infer "root" from a missing ParentId - the Blazor
-                    // File Manager omits parentId in rename/delete requests, which previously
-                    // caused every such operation to be rejected as a root modification.
                     if (!string.IsNullOrEmpty(this.operation.rootFolderId))
                     {
                         isRootItem = item.Id == this.operation.rootFolderId;
@@ -96,9 +89,6 @@ namespace OneDriveASPCoreFileProvider.Controllers
                 PropertyNameCaseInsensitive = true
             };
             dataObject[0] = JsonSerializer.Deserialize<FileManagerDirectoryContent>(data, options);
-            // The route value for 'action' (the action name 'OneDriveUpload') can shadow the
-            // client-supplied upload action (save/replace/keepboth/remove) from the request.
-            // Prefer the explicit upload action sent by the File Manager.
             string uploadAction = Request.HasFormContentType && Request.Form != null && Request.Form.ContainsKey("action")
                 ? Request.Form["action"].ToString()
                 : Request.Query["action"].ToString();
