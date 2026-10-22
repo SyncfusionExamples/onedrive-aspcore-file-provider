@@ -1,6 +1,6 @@
 # onedrive-aspcore-file-provider
 
-This repository contains the **OneDrive file system provider** in ASP.NET Core for the Syncfusion [File Manager component](https://www.syncfusion.com/ej2-asp-core-file-manager). It enables the File Manager to browse, manage, and perform file operations directly against a Microsoft OneDrive drive through the [Microsoft Graph API](https://developer.microsoft.com/en-us/graph).
+This repository contains the **OneDrive file system provider** in ASP.NET Core for the Syncfusion [File Manager component](https://www.syncfusion.com/file-manager-sdk). It enables the File Manager to browse, manage, and perform file operations directly against a Microsoft OneDrive drive through the [Microsoft Graph API](https://developer.microsoft.com/en-us/graph).
 
 ## Key Features
 
@@ -28,7 +28,7 @@ This provider uses **app-only (client credentials) authentication**. It must be 
 
 For details on registering an application, see [Azure AD App Registration](https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app).
 
-> **Important:** The Azure AD application and the OneDrive storage account must belong to the **same directory (tenant)**. The provider authenticates as the application principal and accesses the drive under that tenant.
+- **Azure AD application and OneDrive storage account must belong to the same directory (tenant).** The provider authenticates as the application principal and accesses the drive under that tenant.
 
 ## Configuration
 
