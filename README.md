@@ -21,80 +21,19 @@ The following actions can be performed using the OneDrive file system provider:
 
 ## Prerequisites
 
-Before you integrate OneDrive with the React File Manager, ensure you have:
+Before you integrate OneDrive with the File Manager, ensure you have:
 
-- A Microsoft Azure account with access to the Azure portal.
-- A OneDrive storage account in the same directory (tenant) as the Azure AD application.
-- Azure AD app registration details: TenantId, ClientId, and ClientSecret.
-- Microsoft Graph API permissions: Files.Read.All and Files.ReadWrite.All.
-- OneDrive details: DriveId and RootFolderId.
-
-> N> The Azure AD application and the OneDrive storage account must belong to the same directory (tenant). The provider authenticates as the application principal and accesses the drive under that tenant.
-
-## How to get the Drive ID and Folder ID using Graph Explorer
-
-The `DriveId` and `RootFolderId` values can be retrieved using the [Microsoft Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer).
-
-- **Get the Drive ID:** Run the following query in the Graph Explorer to get the drive details of the signed-in user. The `id` property in the response is the **Drive ID**.
-
-```http
-GET https://graph.microsoft.com/v1.0/me/drive
-```
-
-- **Get the Folder ID:** Run the following query in the Graph Explorer to list the folders in the drive root. The `id` property of the required folder in the response is the **Folder ID** to be used as the `RootFolderId` value.
-
-```http
-GET https://graph.microsoft.com/v1.0/me/drive/root/children
-```
-
-- **Get the Folder ID of any nested folder:** To get the item ID of a folder located under a specific parent folder, run the following query by replacing `{parent-item-id}` with the parent folder's item ID.
-
-```http
-GET https://graph.microsoft.com/v1.0/me/drive/items/{parent-item-id}/children
-```
-
-
-Before you integrate OneDrive with the React File Manager, ensure you have:
-<<<<<<< HEAD
-
-- A Microsoft Azure account with access to the Azure portal.
-- A OneDrive storage account in the same directory (tenant) as the Azure AD application.
-- Azure AD app registration details: TenantId, ClientId, and ClientSecret.
-- Microsoft Graph API permissions: Files.Read.All and Files.ReadWrite.All.
-- OneDrive details: DriveId and RootFolderId.
-
-> N> The Azure AD application and the OneDrive storage account must belong to the same directory (tenant). The provider authenticates as the application principal and accesses the drive under that tenant.
-
-## How to get the Drive ID and Folder ID using Graph Explorer
-
-The `DriveId` and `RootFolderId` values can be retrieved using the [Microsoft Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer).
-
-- **Get the Drive ID:** Run the following query in the Graph Explorer to get the drive details of the signed-in user. The `id` property in the response is the **Drive ID**.
-
-```ts
-GET https://graph.microsoft.com/v1.0/me/drive
-```
-
-- **Get the Folder ID:** Run the following query in the Graph Explorer to list the folders in the drive root. The `id` property of the required folder in the response is the **Folder ID** to be used as the `RootFolderId` value.
-
-```ts
-GET https://graph.microsoft.com/v1.0/me/drive/root/children
-```
-
-- **Get the Folder ID of any nested folder:** To get the item ID of a folder located under a specific parent folder, run the following query by replacing `{parent-item-id}` with the parent folder's item ID.
-
-```ts
-GET https://graph.microsoft.com/v1.0/me/drive/items/{parent-item-id}/children
-```
-=======
  - A Microsoft Azure account with access to the [Azure portal](https://portal.azure.com/).
+
  - A OneDrive storage account in the same directory (tenant) as the Azure AD application.
+
  - Azure AD app registration details: `TenantId`, `ClientId`, and `ClientSecret`.
+
  - Microsoft Graph API permissions: `Files.Read.All` and `Files.ReadWrite.All`.
+
  - OneDrive details: `DriveId` and `RootFolderId`.
 
-N> The Azure AD application and the OneDrive storage account must belong to the **same directory (tenant)**. The provider authenticates as the application principal and accesses the drive under that tenant.
->>>>>>> c65c9430909323b099c2815cce4b70490224754e
+ N> The Azure AD application and the OneDrive storage account must belong to the same directory (tenant). The provider authenticates as the application principal and accesses the drive under that tenant.
 
 ## Configuration
 
