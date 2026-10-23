@@ -103,7 +103,7 @@ Clone this repository to your local machine:
 
 ```bash
 git clone https://github.com/SyncfusionExamples/onedrive-aspcore-file-provider
-cd onedrive-aspcore-file-provider/onedrive-aspcore-file-provider
+cd onedrive-aspcore-file-provider
 ```
 
 ### Restore NuGet Packages
