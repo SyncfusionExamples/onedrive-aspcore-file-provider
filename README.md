@@ -21,14 +21,15 @@ The following actions can be performed using the OneDrive file system provider:
 
 ## Prerequisites
 
-This provider uses **app-only (client credentials) authentication**. It must be registered as an Azure Active Directory application and granted the following Microsoft Graph **application permissions** with admin consent:
+Before you integrate OneDrive with the React File Manager, ensure you have:
 
-- **Files.Read.All**
-- **Files.ReadWrite.All**
+- A Microsoft Azure account with access to the Azure portal.
+- A OneDrive storage account in the same directory (tenant) as the Azure AD application.
+- Azure AD app registration details: TenantId, ClientId, and ClientSecret.
+- Microsoft Graph API permissions: Files.Read.All and Files.ReadWrite.All.
+- OneDrive details: DriveId and RootFolderId.
 
-For details on registering an application, see [Azure AD App Registration](https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app).
-
-- **Azure AD application and OneDrive storage account must belong to the same directory (tenant).** The provider authenticates as the application principal and accesses the drive under that tenant.
+> N> The Azure AD application and the OneDrive storage account must belong to the same directory (tenant). The provider authenticates as the application principal and accesses the drive under that tenant.
 
 ## Configuration
 
