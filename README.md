@@ -31,6 +31,31 @@ Before you integrate OneDrive with the React File Manager, ensure you have:
 
 > N> The Azure AD application and the OneDrive storage account must belong to the same directory (tenant). The provider authenticates as the application principal and accesses the drive under that tenant.
 
+## How to get the Drive ID and Folder ID using Graph Explorer
+
+The `DriveId` and `RootFolderId` values can be retrieved using the [Microsoft Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer).
+
+- **Get the Drive ID:**  
+  Run the following query in the Graph Explorer to get the drive details of the signed-in user. The `id` property in the response is the **Drive ID**:
+
+  ```http
+  GET https://graph.microsoft.com/v1.0/me/drive
+  ```
+
+- **Get the Folder ID:**  
+  Run the following to list the folders in the drive root. The folder `id` in the response is the **Folder ID**:
+
+  ```http
+  GET https://graph.microsoft.com/v1.0/me/drive/root/children
+  ```
+
+- **Get the Folder ID of any nested folder:**  
+  To get the item ID for a child folder, use:
+
+  ```http
+  GET https://graph.microsoft.com/v1.0/me/drive/items/{parent-item-id}/children
+  ```
+
 ## Configuration
 
 Open `appsettings.json` and set your OneDrive account details under the `OneDriveSettings` section:
