@@ -22,9 +22,6 @@ foreach (var key in new[] { "TenantId", "ClientId", "ClientSecret", "DriveId" })
     }
 }
 
-// Configure to listen on all interfaces
-builder.WebHost.UseUrls("http://0.0.0.0:62870");
-
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddCors(options =>
