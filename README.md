@@ -1,2 +1,203 @@
 # onedrive-aspcore-file-provider
-This repository contains the ASP.NET Core OneDrive file system provider for the EJ2 and Blazor File Manager components. It enables integration with Microsoft OneDrive storage and supports file and folder management operations such as browse, create, upload, download, rename, delete, search, and access control through the File Manager component.
+
+This repository contains the **OneDrive file system provider** in ASP.NET Core for the Syncfusion [File Manager component](https://www.syncfusion.com/file-manager-sdk). It enables the File Manager to browse, manage, and perform file operations directly against a Microsoft OneDrive drive through the [Microsoft Graph API](https://developer.microsoft.com/en-us/graph).
+
+## Key Features
+
+The following actions can be performed using the OneDrive file system provider:
+
+| **Actions** | **Description** |
+| --- | --- |
+| **Read** | Reads the files and folders from OneDrive, including navigation breadcrumbs and item metadata. |
+| **Details** | Gets the file or folder details such as Type, Size, Location, and Modified date. |
+| **Download** | Downloads the selected file or folder as a ZIP archive from OneDrive. |
+| **Upload** | Uploads one or more files to OneDrive. Supports directory upload, sequential upload, chunk upload, drag-and-drop, and multiple file uploads. |
+| **Create** | Creates a new folder at the selected location. |
+| **Delete** | Deletes the selected folders or files. |
+| **Copy** | Copies the selected files or folders to a target location, with conflict handling. |
+| **Move** | Moves the selected files or folders to a desired location, with conflict handling. |
+| **Rename** | Renames a folder or file. |
+| **Search** | Searches for files and folders using a text query within the current context. |
+| **Access Control** | Setting rules to files/folders<br>Supported rules |
+
+## Prerequisites
+
+Before you integrate OneDrive with the File Manager, ensure you have:
+
+ - A Microsoft Azure account with access to the [Azure portal](https://portal.azure.com/).
+
+ - A OneDrive storage account in the same directory (tenant) as the Azure AD application.
+
+ - Azure AD app registration details: `TenantId`, `ClientId`, and `ClientSecret`.
+
+ - Microsoft Graph API permissions: `Files.Read.All` and `Files.ReadWrite.All`.
+
+ - OneDrive details: `DriveId` and `RootFolderId`.
+
+ N> The Azure AD application and the OneDrive storage account must belong to the same directory (tenant). The provider authenticates as the application principal and accesses the drive under that tenant.
+
+## Configuration
+
+Open `appsettings.json` and set your OneDrive account details under the `OneDriveSettings` section:
+
+```json
+{
+  "OneDriveSettings": {
+    "TenantId": "<--Tenant Id-->",
+    "ClientId": "<--Client Id-->",
+    "ClientSecret": "<--Client Secret-->",
+    "DriveId": "<--Drive Id-->",
+    "RootFolderId": "<--Root Folder Id-->"
+  }
+}
+```
+
+| Setting | Description |
+|---|---|
+| `TenantId` | Azure AD tenant ID of the registered application. |
+| `ClientId` | Application (client) ID of the registered application. |
+| `ClientSecret` | Client secret value created for the registered application. |
+| `DriveId` | The OneDrive drive ID to access. |
+| `RootFolderId` | The OneDrive item ID of a folder to scope the File Manager. When set, only the files and folders under that folder are displayed. When not set, the entire OneDrive files and folders are displayed. |
+
+## Nested Root Folder Support
+
+The provider supports loading the File Manager starting from a specific OneDrive folder instead of the drive root. To enable this, set the `RootFolderId` value in `appsettings.json` with the OneDrive item ID of the folder you want to use as the root.
+
+When `RootFolderId` is configured:
+
+- The File Manager treats the specified folder as the root level.
+- Only the files and folders under that folder are displayed.
+- Navigation, breadcrumbs, and file operations are scoped within this folder.
+
+When `RootFolderId` is not set, the entire OneDrive files and folders are displayed.
+
+---
+
+**How to get the Drive ID and Folder ID using Graph Explorer**
+
+The `DriveId` and `RootFolderId` values can be retrieved using the [Microsoft Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer).
+
+ - **Get the Drive ID:** Run the following query in the Graph Explorer to get the drive details of the signed-in user. The `id` property in the response is the **Drive ID**.
+
+   ```http
+   GET https://graph.microsoft.com/v1.0/me/drive
+   ```
+
+ - **Get the Folder ID:** Run the following query in the Graph Explorer to list the folders in the drive root. The `id` property of the required folder in the response is the **Folder ID** to be used as the `RootFolderId` value.
+
+   ```http
+   GET https://graph.microsoft.com/v1.0/me/drive/root/children
+   ```
+
+ - **Get the Folder ID of any nested folder:** To get the item ID of a folder located under a specific parent folder, run the following query by replacing `{parent-item-id}` with the parent folder's item ID.
+
+   ```http
+   GET https://graph.microsoft.com/v1.0/me/drive/items/{parent-item-id}/children
+   ```
+
+---
+
+## How to Run This Application
+
+Clone this repository to your local machine:
+
+```bash
+git clone https://github.com/SyncfusionExamples/onedrive-aspcore-file-provider
+cd onedrive-aspcore-file-provider
+```
+
+### Restore NuGet Packages
+
+```bash
+dotnet restore
+```
+
+### Build the Application
+
+```bash
+dotnet build
+```
+
+### Run the Application
+
+```bash
+dotnet run
+```
+
+The project will be hosted on `http://localhost`. To ensure the OneDrive service is running, navigate to:
+
+```
+http://localhost:<port-number>/api/test
+```
+
+## File Manager AjaxSettings
+
+To access the basic actions such as Read, Delete, Copy, Move, Rename, Search, and Get Details of File Manager using the OneDrive service, map the following code snippet in the `AjaxSettings` property of the File Manager. Here, the `hostUrl` will be your locally hosted port number.
+
+```javascript
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
+    url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations'
+}
+```
+
+### File Download AjaxSettings
+
+To perform the download operation, initialize the `downloadUrl` property in `ajaxSettings` of the File Manager component.
+
+```javascript
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
+    url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations',
+    downloadUrl: hostUrl + 'api/OneDriveProvider/OneDriveDownload'
+}
+```
+
+### File Upload AjaxSettings
+
+To perform the upload operation, initialize the `uploadUrl` property in `ajaxSettings` of the File Manager component.
+
+```javascript
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
+    url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations',
+    uploadUrl: hostUrl + 'api/OneDriveProvider/OneDriveUpload'
+}
+```
+
+### File Image Preview AjaxSettings
+
+To enable image preview support in the File Manager component, initialize the `getImageUrl` property in `ajaxSettings` of the File Manager component.
+
+```javascript
+var hostUrl = http://localhost:62870/;
+ajaxSettings: {
+    url: hostUrl + 'api/OneDriveProvider/OneDriveFileOperations',
+    getImageUrl: hostUrl + 'api/OneDriveProvider/OneDriveGetImage'
+}
+```
+
+The FileManager will be rendered as the following.
+
+![File Manager](https://ej2.syncfusion.com/products/images/file-manager/readme.gif)
+
+## Support
+
+Product support is available through the following mediums:
+
+* Get expert help when you need it by [contacting support](https://www.syncfusion.com/support/directtrac/incidents?utm_source=npm&utm_campaign=filemanager), or ask, share, and connect with peers in the [community forum](https://www.syncfusion.com/forums/essential-js2?utm_source=npm&utm_campaign=filemanager).
+
+* New [GitHub issue](https://github.com/syncfusion/ej2-javascript-ui-controls/issues/new).
+
+* Ask your query in [Stack Overflow](https://stackoverflow.com/?utm_source=npm&utm_campaign=filemanager) with tag `syncfusion` and `ej2`.
+
+## License
+
+Check the license details [here](https://github.com/syncfusion/ej2-javascript-ui-controls/blob/master/license).
+
+## Changelog
+
+Check the changelog [here](https://github.com/syncfusion/ej2-javascript-ui-controls/blob/master/controls/filemanager/CHANGELOG.md)
+
+© Copyright 2026 Syncfusion, Inc. All Rights Reserved. The Syncfusion Essential Studio license and copyright applies to this distribution.
